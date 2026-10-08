@@ -1,0 +1,18 @@
+# GROW Ethics Centre — operator-only. NEVER commit secrets or received data.
+
+# The centre's keypair. The PRIVATE key is the trust anchor — it must NEVER be
+# committed. Each centre deployment generates its own keypair.
+keys/*.pem
+
+# Received log batches + per-device chain state (what the collector writes).
+centre/centre-data/
+
+# Enrollment store (org registry + token HASHES). Operator-local.
+centre/enrollment.json
+
+# Viewer accounts (usernames + scrypt password HASHES). Operator-local.
+centre/accounts.json
+
+# Editor / scratch
+.vscode/
+node_modules/

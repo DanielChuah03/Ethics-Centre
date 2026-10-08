@@ -1,0 +1,2 @@
+# Keypair lives here. Generate on deploy; never commit the private key.
+# See README for the openssl commands.
