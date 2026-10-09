@@ -35,10 +35,15 @@ function printEnroll(org, label) {
   console.log("");
   console.log("  ──────────────────────────────────────────────────────────────");
   console.log("");
-  console.log("  Give the customer:");
-  console.log("    GROW_CENTRE_TOKEN = <the token above>");
-  console.log("    GROW_CENTRE_ENDPOINT = <your centre /ingest URL>");
-  console.log("    GROW_PUBLIC_KEY = <your centre public key PEM>");
+  // Paste-ready onboarding line for the whole team. The operator can set
+  // GROW_CENTRE_ENDPOINT once (e.g. in their shell) so this prints fully formed;
+  // otherwise it shows a <placeholder> to fill in.
+  const endpoint = process.env.GROW_CENTRE_ENDPOINT || "https://<your-centre>/ingest";
+  console.log("  Send this ONE line to the team (they run it after cloning GROW):");
+  console.log("");
+  console.log(`    node install.js --token ${r.token} --endpoint ${endpoint}`);
+  console.log("");
+  console.log("  (The token sets the org. Deliver it over a secure channel — never commit it.)");
   console.log("");
 }
 

@@ -138,12 +138,18 @@ function buildData(scope) {
     }
 
     // Per-device category tally + push into the fleet-wide event stream.
+    // Also decide the SOURCE KIND of this partition: a deployed APP (runtime
+    // agent) vs a DEV machine (build-time hooks). The signal is already in the
+    // data — runtime-agent lines carry source:"runtime-agent" / event
+    // "AIInteraction"; dev lines carry PostToolUse / PostFile* / guardrail etc.
     let cat = { G: 0, R: 0, O: 0, W: 0, blocks: 0, scopeFlags: 0 };
+    let appSignals = 0;
     for (const b of decrypted) {
       const c = categoryOf(b);
       if (cat[c] !== undefined) cat[c]++;
       if (isBlock(b)) cat.blocks++;
       if (isScopeFlag(b)) cat.scopeFlags++;
+      if (b.source === "runtime-agent" || b.event === "AIInteraction") appSignals++;
       events.push({
         org: d.org, user: d.user, device: d.device, project: d.project,
         ts: b.ts, event: b.event, category: c,
@@ -152,12 +158,15 @@ function buildData(scope) {
         prompt: b.prompt, detail: detailOf(b),
       });
     }
+    // Majority of events from the runtime agent → it's an app partition.
+    const kind = decrypted.length > 0 && appSignals >= decrypted.length / 2 ? "app" : "dev";
 
     totals.total += decrypted.length;
     for (const k of ["G", "R", "O", "W", "blocks", "scopeFlags"]) totals[k] += cat[k];
 
     devices.push({
       org: d.org, user: d.user, device: d.device, project: d.project,
+      kind, // "app" (deployed, via runtime agent) | "dev" (build-time, human)
       received: d.state.received, head: d.state.head,
       firstSeen: d.state.firstSeen, lastSeen: d.state.lastSeen,
       liveness: livenessOf(d.state.lastSeen),
@@ -440,6 +449,10 @@ const PAGE = `<!doctype html>
     border-bottom:1px solid var(--line)}
   .devname{font-weight:750;font-size:15px;letter-spacing:-.2px}
   .devmeta{margin-left:auto;font-size:12px;color:var(--dim)}
+  .kindbadge{font-size:9.5px;font-weight:800;letter-spacing:.6px;padding:2px 7px;border-radius:4px;cursor:help}
+  .kindbadge.app{color:var(--cyan);background:var(--cyan-soft);border:1px solid rgba(95,181,154,.4)}
+  .kindbadge.dev{color:var(--dim);background:var(--surface);border:1px solid var(--line)}
+  .devblock.isapp::before{background:var(--cyan)}
   .phdr,.prow{display:grid;width:100%;align-items:center;gap:18px;
     grid-template-columns:minmax(0,1fr) 80px 100px 100px 110px minmax(0,1fr);padding:11px 20px 11px 40px}
   .phdr{color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.7px;font-weight:700;
@@ -922,6 +935,14 @@ function renderOrgFleet(org){
     const user = projs[0].user;
     const totEvents = projs.reduce((s,p)=>s+p.received,0);
     const anyBroken = projs.some(p=>!p.chainOk);
+    // Is this device a deployed APP (runtime agent) or a DEV machine (human)?
+    const isApp = projs.some(p=>p.kind==='app');
+    // For apps the "user" field is meaningless (it's the agent, not a person) —
+    // show the kind instead of a fake human name.
+    const sourceLabel = isApp ? 'deployed app' : esc(user);
+    const kindBadge = isApp
+      ? '<span class="kindbadge app" title="A deployed application, governed via the GROW runtime agent. Its end-users appear per-event, not here.">APP</span>'
+      : '<span class="kindbadge dev" title="A developer machine running build-time GROW hooks.">DEV</span>';
 
     const projRows = projs.map(d=>{
       const cats = ['G','R','O','W'].map(k=>'<span class="catpill '+k+'">'+k+' '+(d.cat[k]||0)+'</span>').join('');
@@ -939,13 +960,14 @@ function renderOrgFleet(org){
       '</div>';
     }).join('');
 
-    return '<div class="devblock '+dl+'">'+
+    return '<div class="devblock '+dl+(isApp?' isapp':'')+'">'+
       '<div class="devbar">'+
         '<span class="ldot '+dl+'"></span>'+
+        kindBadge+
         '<span class="devname">'+esc(dev)+'</span>'+
         '<span class="badge '+dl+'">'+dl+'</span>'+
         (anyBroken?'<span class="badge bad">chain issue</span>':'')+
-        '<span class="devmeta">'+esc(user)+' · '+projs.length+' project'+(projs.length===1?'':'s')+' · '+totEvents+' events</span>'+
+        '<span class="devmeta">'+sourceLabel+' · '+projs.length+(isApp?(' app'+(projs.length===1?'':'s')):(' project'+(projs.length===1?'':'s')))+' · '+totEvents+' events</span>'+
       '</div>'+
       projHeader + projRows +
     '</div>';
@@ -1245,8 +1267,15 @@ document.getElementById('pvEnrollBtn').addEventListener('click', async ()=>{
   const { status, json } = await postAdmin('/admin/enroll', { org, label });
   if(status===200 && json.ok){
     out.className='pvout ok'; out.textContent='Credential "'+esc(json.label)+'" issued for org "'+esc(json.org)+'".';
-    sec.innerHTML = secretBox('Device token — '+esc(json.label)+' (shown once)', json.token,
-      'Set this on the device/app as GROW_CENTRE_TOKEN. Not recoverable — only its hash is stored. Lost it? Revoke and issue a new one.');
+    // The ingest endpoint devs push to. Default: this centre's own origin + /ingest
+    // (how the nginx deploy routes it). Server can override via data.ingestUrl.
+    const ingest = (DATA && DATA.ingestUrl) || (location.origin + '/ingest');
+    const installLine = 'node install.js --token ' + json.token + ' --endpoint ' + ingest;
+    sec.innerHTML =
+      secretBox('Device token — '+esc(json.label)+' (shown once)', json.token,
+        'Not recoverable — only its hash is stored. Lost it? Revoke and issue a new one.') +
+      secretBox('Send this ONE line to the team (clone GROW, then run it)', installLine,
+        'The token sets the org. Deliver over a secure channel — never commit it.');
     document.getElementById('pvEnrollNewOrg').value=''; document.getElementById('pvEnrollLabel').value='';
     refresh(); loadProvisionTokens();
   } else {
@@ -1718,6 +1747,10 @@ const server = http.createServer(async (req, res) => {
     try { data = buildData({ role: session.role, org: session.org }); }
     catch (e) { data = { error: e.message, devices: [], events: [], orgs: [], summary: {}, enrollment: { rows: [], unenrolled: [], counts: {} } }; }
     data.viewer = { username: session.username, role: session.role, org: session.org };
+    // Optional: pin the exact public ingest URL shown in the onboarding line.
+    // If unset, the client falls back to its own origin + /ingest (the usual
+    // nginx deploy). Set GROW_PUBLIC_INGEST_URL in prod to be explicit.
+    if (process.env.GROW_PUBLIC_INGEST_URL) data.ingestUrl = process.env.GROW_PUBLIC_INGEST_URL;
     res.writeHead(200, { "Content-Type": "application/json" });
     return res.end(JSON.stringify(data));
   }
