@@ -280,22 +280,32 @@ function isScopeFlag(b) {
   return b.event === "guardrail" && b.decision === "allow";
 }
 function detailOf(b) {
-  if (b.event === "UserPromptSubmit") return b.prompt || "";
+  // Collapse whitespace/newlines and cap length so long shell one-liners don't
+  // sprawl across the log. Keeps it readable without losing the gist.
+  const tidy = (s, n = 120) => {
+    const t = String(s || "").replace(/\s+/g, " ").trim();
+    return t.length > n ? t.slice(0, n) + " …" : t;
+  };
+  if (b.event === "UserPromptSubmit") return tidy(b.prompt, 200);
   if (b.event === "guardrail") {
     const r = (b.reason || "").replace(/\s*\(see command\)/, "");
-    return r + (b.command ? "  ·  $ " + b.command : "");
+    return tidy(r) + (b.command ? "  ·  $ " + tidy(b.command, 80) : "");
   }
-  if (b.event === "PostToolUse") return b.command ? "$ " + b.command : (b.path || b.tool || "");
-  if (/^PostFile/.test(b.event || "")) return b.path || "(path unavailable)";
+  if (b.event === "PostToolUse") {
+    if (b.command) return "$ " + tidy(b.command);
+    if (b.path) return tidy(b.path, 140);
+    return b.tool || "(tool call)"; // never blank
+  }
+  if (/^PostFile/.test(b.event || "")) return tidy(b.path, 140) || (b.tool ? b.tool : "(path unavailable)");
   // Runtime agent AI interaction: show the prompt → completion, plus any findings.
   if (b.event === "AIInteraction") {
-    const p = (b.prompt || "").replace(/\s+/g, " ").slice(0, 160);
-    const c = (b.completion || "").replace(/\s+/g, " ").slice(0, 160);
+    const p = tidy(b.prompt, 160);
+    const c = tidy(b.completion, 160);
     const flags = Array.isArray(b.findings) && b.findings.length
       ? "  [" + b.findings.map((f) => f.rule).join(", ") + "]" : "";
     return (b.model ? b.model + " · " : "") + "prompt: " + p + "  →  reply: " + c + flags;
   }
-  return b.path || "";
+  return tidy(b.path, 140) || (b.tool ? b.tool : "");
 }
 
 const PAGE = `<!doctype html>
