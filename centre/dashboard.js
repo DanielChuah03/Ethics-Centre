@@ -1205,6 +1205,10 @@ document.getElementById('actFilters').addEventListener('click', ev=>{
 });
 document.getElementById('orgFilter').addEventListener('change', ev=>{
   orgFilter = ev.target.value; projFilter = "ALL"; renderAll();
+  // If the Provision tab is open, re-filter its credentials table to the org too.
+  if (!document.getElementById('provision').classList.contains('hidden')) {
+    loadProvisionTokens(); loadProvisionUsers();
+  }
 });
 // Fleet clicks: an org row drills into the org; a project row scopes the Event Log.
 document.getElementById('cards').addEventListener('click', ev=>{
@@ -1351,6 +1355,9 @@ async function loadProvisionTokens(){
   const revokedRows = [];
   let revokedCount = 0;
   (orgs||[]).sort((a,b)=>a.org.localeCompare(b.org)).forEach(o=>{
+    // Respect the dashboard's org filter (top-right picker) so the credentials
+    // list isn't cluttered with every org at once. "ALL" shows everything.
+    if (orgFilter !== "ALL" && o.org !== orgFilter) return;
     const toks = (o.tokens||[]).slice().sort((a,b)=>String(b.issuedAt||'').localeCompare(String(a.issuedAt||'')));
     toks.forEach(t=>{
       if(t.status==='active'){
@@ -1449,7 +1456,8 @@ async function loadProvisionUsers(){
   if(!users || !users.length){ tb.innerHTML='<tr><td colspan="5" style="color:var(--dim)">No accounts yet.</td></tr>'; return; }
 
   const admins = users.filter(u=>u.role==='admin').sort((a,b)=>a.username.localeCompare(b.username));
-  const viewers = users.filter(u=>u.role!=='admin');
+  // Org-viewers respect the org filter; admins always show (they're not org-scoped).
+  const viewers = users.filter(u=>u.role!=='admin' && (orgFilter==="ALL" || u.org===orgFilter));
   const byOrg = {};
   viewers.forEach(u=>{ (byOrg[u.org||'—'] = byOrg[u.org||'—'] || []).push(u); });
 
