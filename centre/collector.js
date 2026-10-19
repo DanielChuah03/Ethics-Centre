@@ -154,6 +154,9 @@ const server = http.createServer(async (req, res) => {
   reply(res, 404, { ok: false, error: "not found" });
 });
 
-server.listen(PORT, () => {
-  console.log(`GROW collector → http://localhost:${PORT}/ingest  (private key: ${path.basename(PRIV_FILE)})`);
+// Bind host: default all-interfaces (local demo). Behind nginx on a server,
+// set GROW_BIND_HOST=127.0.0.1 so only the reverse proxy can reach the collector.
+const BIND_HOST = process.env.GROW_BIND_HOST || undefined;
+server.listen(PORT, BIND_HOST, () => {
+  console.log(`GROW collector → http://${BIND_HOST || "0.0.0.0"}:${PORT}/ingest  (private key: ${path.basename(PRIV_FILE)})`);
 });

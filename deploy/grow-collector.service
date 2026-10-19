@@ -1,0 +1,29 @@
+# GROW Ethics Centre — collector service.
+# Install: copy to /etc/systemd/system/grow-collector.service, edit the paths/User,
+# then:  sudo systemctl daemon-reload && sudo systemctl enable --now grow-collector
+#
+# Secrets/config come from /etc/grow/centre.env (see deploy/centre.env.example).
+
+[Unit]
+Description=GROW Ethics Centre - collector (ingest)
+After=network.target
+
+[Service]
+Type=simple
+# Run as a non-root user that owns the repo + keys (create one, e.g. 'grow').
+User=grow
+WorkingDirectory=/opt/Ethics-Centre
+EnvironmentFile=/etc/grow/centre.env
+# Bind to localhost only — nginx is the only thing allowed to reach it.
+Environment=GROW_BIND_HOST=127.0.0.1
+Environment=GROW_CENTRE_PORT=4319
+ExecStart=/usr/bin/node centre/collector.js
+Restart=always
+RestartSec=3
+# Light hardening.
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

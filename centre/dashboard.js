@@ -1904,8 +1904,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (require.main === module) {
-  server.listen(PORT, () => {
-    console.log(`GROW Ethics Centre dashboard → http://localhost:${PORT}  (reads + decrypts centre-data/)`);
+  // Behind nginx on a server, set GROW_BIND_HOST=127.0.0.1 so only the reverse
+  // proxy can reach the dashboard. Default (unset) = all interfaces for local demo.
+  const BIND_HOST = process.env.GROW_BIND_HOST || undefined;
+  server.listen(PORT, BIND_HOST, () => {
+    console.log(`GROW Ethics Centre dashboard → http://${BIND_HOST || "0.0.0.0"}:${PORT}  (reads + decrypts centre-data/)`);
   });
 } else {
   module.exports = { buildData, categoryOf, detailOf, livenessOf };

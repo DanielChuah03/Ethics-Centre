@@ -1,0 +1,30 @@
+# GROW Ethics Centre — dashboard service.
+# Install: copy to /etc/systemd/system/grow-dashboard.service, edit paths/User,
+# then:  sudo systemctl daemon-reload && sudo systemctl enable --now grow-dashboard
+#
+# Secrets/config come from /etc/grow/centre.env (see deploy/centre.env.example).
+# GROW_SESSION_SECRET and GROW_SECURE_COOKIE MUST be set there for a real deploy.
+
+[Unit]
+Description=GROW Ethics Centre - dashboard (operator console)
+After=network.target
+
+[Service]
+Type=simple
+User=grow
+WorkingDirectory=/opt/Ethics-Centre
+EnvironmentFile=/etc/grow/centre.env
+# Bind to localhost only — reachable only via nginx.
+Environment=GROW_BIND_HOST=127.0.0.1
+Environment=GROW_CENTRE_DASH_PORT=4318
+# Behind HTTPS (Cloudflare + nginx) → cookie gets the Secure flag.
+Environment=GROW_SECURE_COOKIE=1
+ExecStart=/usr/bin/node centre/dashboard.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
