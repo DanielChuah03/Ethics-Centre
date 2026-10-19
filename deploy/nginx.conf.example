@@ -1,43 +1,50 @@
-# GROW Ethics Centre — nginx reverse proxy (example).
+# GROW Ethics Centre — nginx reverse proxy.
 #
-# Terminates TLS with a Cloudflare ORIGIN CERTIFICATE and proxies to the two
-# Node services, which are bound to 127.0.0.1 (never exposed directly):
+# Single host, split by path. Terminates TLS with a Cloudflare ORIGIN
+# CERTIFICATE and proxies to the two Node services (bound to 127.0.0.1, never
+# exposed directly):
 #
-#   centre.<your-domain>   -> dashboard  (127.0.0.1:4318)   you log in here
-#   ingest.<your-domain>   -> collector  (127.0.0.1:4319)   the agent ships here
+#   https://gec.dansops.com/          -> dashboard  (127.0.0.1:4318)   you log in here
+#   https://gec.dansops.com/ingest    -> collector  (127.0.0.1:4319)   the agent ships here
 #
 # Topology: browser/agent --HTTPS--> Cloudflare (Full strict) --HTTPS--> nginx here.
 #
 # SETUP:
-#   1. In the Cloudflare dashboard: SSL/TLS -> Origin Server -> Create Certificate.
-#      Save the cert + key on this box (paths below). This is NOT Let's Encrypt;
-#      it's a 15-year cert Cloudflare trusts from its edge. No renewal cron.
-#   2. Replace <your-domain> throughout.
-#   3. Copy this to /etc/nginx/sites-available/grow, symlink into sites-enabled,
+#   1. Cloudflare: SSL/TLS -> Origin Server -> Create Certificate. Save the cert
+#      + key on this box at the paths below. (NOT Let's Encrypt; 15-year edge
+#      cert, no renewal cron.) Set SSL/TLS mode to Full (strict).
+#   2. Pre-filled for gec.dansops.com — change it here if your host differs.
+#   3. Copy to /etc/nginx/sites-available/grow, symlink into sites-enabled,
 #      `sudo nginx -t` then `sudo systemctl reload nginx`.
 #
-# Install: sudo apt-get install -y nginx   (Ubuntu/Debian)
-
-# ---- shared TLS (Cloudflare Origin Certificate) ---------------------------
-# Put the cert/key you downloaded from Cloudflare here:
+# Cloudflare Origin Certificate files (paste them in during DEPLOY.md):
 #   /etc/ssl/cloudflare/origin.pem   (certificate)
 #   /etc/ssl/cloudflare/origin.key   (private key, chmod 600)
 
-# Optional but recommended: only accept connections proxied by Cloudflare.
-# Download Cloudflare's IP list and allow just those (see DEPLOY.md). Example:
-#   include /etc/nginx/cloudflare-allow.conf;   # allow <cf-ranges>; deny all;
-
-# -------------------- DASHBOARD : centre.<your-domain> ---------------------
 server {
     listen 443 ssl;
     http2 on;
-    server_name centre.<your-domain>;
+    server_name gec.dansops.com;
 
     ssl_certificate     /etc/ssl/cloudflare/origin.pem;
     ssl_certificate_key /etc/ssl/cloudflare/origin.key;
     ssl_protocols       TLSv1.2 TLSv1.3;
 
-    # The dashboard sets its own Secure/HttpOnly session cookie (GROW_SECURE_COOKIE=1).
+    # Allow a generous body size for batched events posted to /ingest.
+    client_max_body_size 10m;
+
+    # Collector — the agent POSTs batches here. Peeled off before the dashboard.
+    location = /ingest {
+        proxy_pass         http://127.0.0.1:4319/ingest;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto https;
+        proxy_read_timeout 60s;
+    }
+
+    # Everything else — the operator dashboard (login, /data, etc.).
     location / {
         proxy_pass         http://127.0.0.1:4318;
         proxy_http_version 1.1;
@@ -49,34 +56,9 @@ server {
     }
 }
 
-# -------------------- COLLECTOR : ingest.<your-domain> ---------------------
-server {
-    listen 443 ssl;
-    http2 on;
-    server_name ingest.<your-domain>;
-
-    ssl_certificate     /etc/ssl/cloudflare/origin.pem;
-    ssl_certificate_key /etc/ssl/cloudflare/origin.key;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-
-    # Agents POST batches here. Allow a generous body size for batched events.
-    client_max_body_size 10m;
-
-    location / {
-        proxy_pass         http://127.0.0.1:4319;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto https;
-        proxy_read_timeout 60s;
-    }
-}
-
-# -------------------- redirect any plain HTTP to HTTPS ---------------------
-# Cloudflare proxies 443->443, but keep 80 closed/redirected for safety.
+# Redirect any plain HTTP to HTTPS (Cloudflare proxies 443, but keep 80 safe).
 server {
     listen 80;
-    server_name centre.<your-domain> ingest.<your-domain>;
+    server_name gec.dansops.com;
     return 301 https://$host$request_uri;
 }

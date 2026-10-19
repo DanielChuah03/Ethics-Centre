@@ -36,9 +36,11 @@ Note the instance's **public IP**.
 
 ## 2. Point your domain at it (Cloudflare DNS)
 
-In the Cloudflare dashboard → **DNS**:
-- Add an **A record**: `centre` → `<EC2 public IP>` — **Proxied (orange cloud)**.
-- Add an **A record**: `ingest` → `<EC2 public IP>` — **Proxied (orange cloud)**.
+In the Cloudflare dashboard (zone **dansops.com**) → **DNS**:
+- Add an **A record**: `gec` → `<EC2 public IP>` — **Proxied (orange cloud)**.
+
+That's the only record needed — the dashboard and the collector both live under
+`gec.dansops.com` (the collector on the `/ingest` path).
 
 In **SSL/TLS → Overview**: set encryption mode to **Full (strict)**.
 
@@ -64,9 +66,20 @@ node -v   # confirm >= 18
 ```bash
 sudo useradd --system --create-home --shell /usr/sbin/nologin grow
 sudo mkdir -p /opt
-sudo git clone <Ethics-Centre repo URL> /opt/Ethics-Centre
+```
+
+The Ethics-Centre repo is **private**, so a bare `git clone` will fail on the
+box. Easiest: create a **fine-grained personal access token** (github.com →
+Settings → Developer settings → Personal access tokens → Fine-grained) with
+**read-only Contents** access to just the Ethics-Centre repo, then:
+
+```bash
+sudo git clone https://<YOUR_GITHUB_PAT>@github.com/DanielChuah03/Ethics-Centre.git /opt/Ethics-Centre
 sudo chown -R grow:grow /opt/Ethics-Centre
 ```
+
+(The token is only in this command, not stored in the repo. Revoke it afterward
+if you like — you won't need it again unless you re-pull.)
 
 Generate the keypair, enroll the demo org, and create logins. Run the admin
 tasks as the `grow` user so the files it writes are owned correctly:
@@ -118,9 +131,10 @@ sudo chmod 600 /etc/ssl/cloudflare/origin.key
 
 ## 6. nginx
 
+The config is pre-filled for `gec.dansops.com`, so no editing needed:
+
 ```bash
 sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/grow
-sudo sed -i 's/<your-domain>/yourdomain.com/g' /etc/nginx/sites-available/grow
 sudo ln -sf /etc/nginx/sites-available/grow /etc/nginx/sites-enabled/grow
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t          # must say OK
@@ -136,21 +150,22 @@ curl -s http://127.0.0.1:4318/health   # dashboard health
 ```
 
 From your laptop, in a browser:
-- `https://centre.yourdomain.com` → the GROW login page (valid HTTPS padlock).
+- `https://gec.dansops.com` → the GROW login page (valid HTTPS padlock).
 - Log in with `manager` + the temp password from 4c → you should see the empty
   dashboard (no data yet).
 
-If the padlock is bad or you get a 5xx: check Cloudflare SSL mode is **Full
-(strict)**, the A records are **proxied**, and `sudo nginx -t` passed.
+If the padlock is bad or you get a 5xx (often 525): check Cloudflare SSL mode is
+**Full (strict)**, the `gec` A record is **proxied** (orange), and `sudo nginx
+-t` passed.
 
 ## 8. Hand off to your manager (out-of-band)
 
 Send him, over a secure channel (NOT in the repo, NOT in plain email if you can
 help it):
 
-1. **Dashboard URL:** `https://centre.yourdomain.com`
+1. **Dashboard URL:** `https://gec.dansops.com`
 2. **Login:** `manager` / `<temp password>` (he changes it on first login)
-3. **Collector endpoint:** `https://ingest.yourdomain.com/ingest`
+3. **Collector endpoint:** `https://gec.dansops.com/ingest`
 4. **Enrollment token:** the `grow_exabytes_...` string from step 4b
 5. **The public key file:** `keys/centre-public.pem` (safe to send; not a secret)
 
