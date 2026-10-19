@@ -519,6 +519,13 @@ const PAGE = `<!doctype html>
     border:1px solid var(--line);color:var(--dim);background:var(--surface);transition:.16s}
   .chip:hover{color:var(--txt);border-color:rgba(74,222,128,.3)}
   .chip.active{color:var(--accent);border-color:rgba(74,222,128,.3);background:var(--accent-soft)}
+  /* Source toggle (App / Dev / All) — cyan accent to read as a distinct control
+     from the green category chips, and to tie to the APP kind badge colour. */
+  .srcgroup{display:inline-flex;gap:6px;padding:3px;border-radius:var(--radius-sm);background:var(--surface2);border:1px solid var(--line)}
+  .chip.src{border-color:transparent;background:transparent}
+  .chip.src:hover{color:var(--txt);border-color:transparent}
+  .chip.src.active{color:var(--cyan);background:var(--cyan-soft);border-color:rgba(95,181,154,.4)}
+  .chipsep{display:inline-block;width:1px;align-self:stretch;margin:0 4px;background:var(--line)}
 
   .panel{background:var(--surface);
     border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
@@ -824,6 +831,8 @@ let DATA = { devices:[], events:[], orgs:[], summary:{}, enrollment:{rows:[],une
 let actFilter = "ALL";   // ALL | G | R | O | W
 let projFilter = "ALL";  // "ALL" or a specific project name (scoped within the current org)
 let orgFilter = "ALL";
+let srcFilter = "app";   // app | dev | ALL — the Event Log defaults to deployed-APP traffic
+                         // (the runtime agent) so the demo opens on what sells: live AI calls.
 
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function when(ts){ return ts ? new Date(ts).toLocaleString() : "—"; }
@@ -843,6 +852,17 @@ const CAT_LABEL = {G:"G",R:"R",O:"O",W:"W"};
 
 function devicesForOrg(){ return orgFilter==="ALL" ? DATA.devices : DATA.devices.filter(d=>d.org===orgFilter); }
 function eventsForOrg(){ return orgFilter==="ALL" ? DATA.events : DATA.events.filter(e=>e.org===orgFilter); }
+
+// Map an event to its source kind ("app" | "dev") via the device partition it
+// belongs to. buildData tags each org/user/device/project partition with kind;
+// events carry org/device/project, so we look the partition up. An event with
+// no matching partition (shouldn't happen) is treated as "dev" so app view
+// stays clean.
+function eventKind(e){
+  const d = DATA.devices.find(x =>
+    x.org===e.org && x.device===e.device && (x.project||"_")===(e.project||"_"));
+  return d && d.kind ? d.kind : "dev";
+}
 
 function renderFleet(){
   if (orgFilter === "ALL") renderOrgOverview();
@@ -987,11 +1007,21 @@ function renderOrgFleet(org){
 }
 
 function renderActivity(){
+  // Source toggle first — App (deployed runtime traffic) vs Dev (build-time) vs All.
+  // Rendered as chips with a distinct data attribute so one delegated handler
+  // can tell them apart from the category chips.
+  const srcs = [['app','App traffic'],['dev','Dev activity'],['ALL','All sources']];
+  const srcHtml = '<div class="srcgroup">' + srcs.map(([f,l])=>
+    '<div class="chip src '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div>';
   const cats = [['ALL','All'],['G','G · Data'],['R','R · Scope'],['O','O · Observe'],['W','W · Wall']];
-  document.getElementById('actFilters').innerHTML = cats.map(([f,l])=>
+  const catHtml = cats.map(([f,l])=>
     '<div class="chip '+(actFilter===f?'active':'')+'" data-f="'+f+'">'+l+'</div>').join('');
+  document.getElementById('actFilters').innerHTML = srcHtml + '<span class="chipsep"></span>' + catHtml;
 
   let rows = eventsForOrg();
+
+  // Apply the source filter (app/dev/all) before anything else.
+  if (srcFilter !== "ALL") rows = rows.filter(e => eventKind(e) === srcFilter);
 
   // Populate the project dropdown with the distinct projects in the current scope.
   const projNames = [...new Set(rows.map(e => (e.project && e.project !== "_") ? e.project : null).filter(Boolean))].sort();
@@ -1170,6 +1200,7 @@ document.getElementById('tabs').addEventListener('click', ev=>{
 });
 document.getElementById('actFilters').addEventListener('click', ev=>{
   const c = ev.target.closest('.chip'); if(!c) return;
+  if (c.dataset.src !== undefined) { srcFilter = c.dataset.src; renderActivity(); return; }
   actFilter = c.dataset.f; renderActivity();
 });
 document.getElementById('orgFilter').addEventListener('change', ev=>{
