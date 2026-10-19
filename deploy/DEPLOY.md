@@ -94,13 +94,13 @@ cd /opt/Ethics-Centre
 # 4a. Generate the Centre keypair (private stays here forever).
 sudo -u grow node -e "const c=require('crypto'),fs=require('fs');const{publicKey,privateKey}=c.generateKeyPairSync('rsa',{modulusLength:2048,publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem'}});fs.mkdirSync('keys',{recursive:true});fs.writeFileSync('keys/centre-private.pem',privateKey);fs.writeFileSync('keys/centre-public.pem',publicKey);console.log('keypair written to keys/');"
 
-# 4b. Enroll the org your manager/customer will use; COPY THE TOKEN it prints.
-sudo -u grow node centre/grow-admin.js enroll exabytes demo-agent
+# 4b. Enroll the org the agent reports under; COPY THE TOKEN it prints
+#     (a 'grow_dansops_...' string).
+sudo -u grow node centre/grow-admin.js enroll dansops demo-agent
 
-# 4c. Create his dashboard login (prints a temp password he changes on first login).
-sudo -u grow node centre/grow-admin.js add-user exabytes manager
-#   (or, for full visibility across orgs:)
-# sudo -u grow node centre/grow-admin.js add-user --admin manager
+# 4c. Create the dashboard login for your manager (admin = sees everything).
+#     Prints a temp password he changes on first login.
+sudo -u grow node centre/grow-admin.js add-user --admin manager
 ```
 
 Keep the **token** (4b) and the **temp password** (4c) — you send these to him
@@ -170,7 +170,7 @@ help it):
 1. **Dashboard URL:** `https://gec.dansops.com`
 2. **Login:** `manager` / `<temp password>` (he changes it on first login)
 3. **Collector endpoint:** `https://gec.dansops.com/ingest`
-4. **Enrollment token:** the `grow_exabytes_...` string from step 4b
+4. **Enrollment token:** the `grow_dansops_...` string from step 4b
 5. **The public key file:** `keys/centre-public.pem` (safe to send; not a secret)
 
 He then follows `GROW-Framework/demo/CONNECT.md` — clone the framework repo,
