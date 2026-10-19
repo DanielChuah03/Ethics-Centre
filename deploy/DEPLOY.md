@@ -24,13 +24,17 @@ and a terminal.
 - **Type:** `t3.small` is plenty for a demo/beta (2 GB RAM).
 - **Key pair:** create/download one so you can SSH in.
 - **Storage:** default 8–20 GB is fine (logs are small).
-- **Security group — this matters:**
-  - Inbound **443** (HTTPS) — source: ideally **Cloudflare IP ranges only**
-    (https://www.cloudflare.com/ips/); `0.0.0.0/0` works but is less tight.
-  - Inbound **80** (HTTP) — same source (for the →HTTPS redirect).
-  - Inbound **22** (SSH) — source: **your IP only**.
-  - **Do NOT open 4318 or 4319.** The Node services bind to localhost; only
-    nginx reaches them.
+- **Security group — least privilege, nothing open to the whole internet:**
+  - Inbound **443** (HTTPS) — source: **Cloudflare IPv4 ranges only**
+    (the ~15 CIDRs from https://www.cloudflare.com/ips-v4/). All real traffic
+    arrives via Cloudflare's proxy, so only Cloudflare needs to reach the box.
+  - Inbound **22** (SSH) — source: **your IP only**. Close it again after
+    deploy if you want; reopen when you next need to manage the box.
+  - **Do NOT open 80.** Its only job would be an HTTP→HTTPS redirect, but you
+    always hand out `https://` URLs and Cloudflare serves HTTPS at the edge, so
+    it's unnecessary. (A stray `http://` visit just fails to connect.)
+  - **Do NOT open 4318 or 4319.** The Node services bind to 127.0.0.1; only
+    nginx (on the same box) reaches them.
 
 Note the instance's **public IP**.
 
