@@ -148,9 +148,25 @@ async function handleIngest(req, res) {
   return reply(res, 200, { ok: true, stored: lines.length, head: newHead });
 }
 
+// The centre's PUBLIC key — safe to serve openly. Clients (dev installer,
+// runtime agent) fetch it so they can encrypt TO the centre without anyone
+// having to hand-deliver the key file. Only the PRIVATE key is secret.
+const PUB_FILE = path.join(path.dirname(PRIV_FILE), "centre-public.pem");
+
 const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/ingest") return handleIngest(req, res);
   if (req.url === "/health") return reply(res, 200, { ok: true, service: "grow-collector" });
+  // Serve the public key (PEM). No auth — a public key is not a secret, and
+  // clients need it before they have anything else configured.
+  if (req.url === "/pubkey") {
+    try {
+      const pem = fs.readFileSync(PUB_FILE, "utf8");
+      res.writeHead(200, { "Content-Type": "application/x-pem-file" });
+      return res.end(pem);
+    } catch {
+      return reply(res, 404, { ok: false, error: "public key not found" });
+    }
+  }
   reply(res, 404, { ok: false, error: "not found" });
 });
 
