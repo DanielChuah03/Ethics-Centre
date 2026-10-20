@@ -663,8 +663,7 @@ const PAGE = `<!doctype html>
      <div class="tab active" data-tab="fleet">Fleet</div>
      <div class="tab" data-tab="activity">Event Log</div>
      <div class="tab" data-tab="alerts">Alerts</div>
-     <div class="tab" data-tab="enroll">Enrollment</div>
-     <div class="tab hidden" data-tab="provision" id="tabProvision">Provision</div>
+     <div class="tab hidden" data-tab="admin" id="tabAdmin">Admin</div>
    </nav>
    <label class="mono orgfilter-wrap">org&nbsp;
      <select id="orgFilter"><option value="ALL">All orgs</option></select>
@@ -725,7 +724,7 @@ const PAGE = `<!doctype html>
     <div class="empty hidden" id="scopesEmpty">No scope-widening flagged across the fleet.</div>
   </section>
 
-  <section id="enroll" class="hidden">
+  <section id="admin" class="hidden">
     <div class="section-label">Enrollment</div>
     <div class="strip" id="enrollStrip" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="section-label" style="margin-top:24px">Enrolled organizations</div>
@@ -736,10 +735,8 @@ const PAGE = `<!doctype html>
     <div class="empty hidden" id="enrollEmpty">No orgs enrolled yet. Issue a token with: node centre/grow-admin.js enroll &lt;org&gt;</div>
     <div class="section-label hidden" id="unenrolledLabel" style="margin-top:24px">⚠ Reporting but NOT enrolled</div>
     <div id="unenrolledBody"></div>
-  </section>
 
-  <section id="provision" class="hidden">
-    <div class="section-label">Provision access</div>
+    <div class="section-label" style="margin-top:32px">Provision access</div>
     <div class="pvgrid">
       <div class="pvcard">
         <h3>Issue device credential</h3>
@@ -1164,9 +1161,10 @@ function applyViewer(){
     orgFilter = v.org;
     const sel = document.getElementById('orgFilter'); if (sel) sel.closest('label').style.display = 'none';
   }
-  // Provisioning is admin-only — reveal the tab for admins (server enforces too).
+  // Admin (enrollment overview + provisioning) is admin-only — reveal for
+  // admins (the server enforces the provisioning routes too).
   if (v.role === 'admin') {
-    const pt = document.getElementById('tabProvision'); if (pt) pt.classList.remove('hidden');
+    const pt = document.getElementById('tabAdmin'); if (pt) pt.classList.remove('hidden');
   }
 }
 
@@ -1189,9 +1187,10 @@ function applyViewer(){
 
 function showTab(tab){
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab===tab));
-  ['fleet','activity','alerts','enroll','provision'].forEach(id=>
+  ['fleet','activity','alerts','admin'].forEach(id=>
     document.getElementById(id).classList.toggle('hidden', id!==tab));
-  if (tab === 'provision') { fillOrgDropdown(); loadProvisionTokens(); loadProvisionUsers(); }
+  // Admin tab combines enrollment overview + provisioning. Load both.
+  if (tab === 'admin') { renderEnroll(); fillOrgDropdown(); loadProvisionTokens(); loadProvisionUsers(); }
   else if (typeof clearSelection === 'function') clearSelection();
 }
 document.getElementById('tabs').addEventListener('click', ev=>{
@@ -1205,8 +1204,8 @@ document.getElementById('actFilters').addEventListener('click', ev=>{
 });
 document.getElementById('orgFilter').addEventListener('change', ev=>{
   orgFilter = ev.target.value; projFilter = "ALL"; renderAll();
-  // If the Provision tab is open, re-filter its credentials table to the org too.
-  if (!document.getElementById('provision').classList.contains('hidden')) {
+  // If the Admin tab is open, re-filter its credentials/accounts to the org too.
+  if (!document.getElementById('admin').classList.contains('hidden')) {
     loadProvisionTokens(); loadProvisionUsers();
   }
 });
