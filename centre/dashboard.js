@@ -828,9 +828,9 @@ let DATA = { devices:[], events:[], orgs:[], summary:{}, enrollment:{rows:[],une
 let actFilter = "ALL";   // ALL | G | R | O | W
 let projFilter = "ALL";  // "ALL" or a specific project name (scoped within the current org)
 let orgFilter = "ALL";
-let srcFilter = "app";   // app | dev | ALL — the Event Log defaults to deployed-APP traffic
-                         // (the runtime agent) so the demo opens on what sells: live AI calls.
-
+let srcFilter = "ALL";   // default source filter for the Event Log
+                         // (app | dev | ALL). Defaults to ALL so the Event Log opens
+                         // on the full fleet view: dev build-time + deployed app traffic.
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function when(ts){ return ts ? new Date(ts).toLocaleString() : "—"; }
 function shortWhen(ts){
@@ -1007,7 +1007,7 @@ function renderActivity(){
   // Source toggle first — App (deployed runtime traffic) vs Dev (build-time) vs All.
   // Rendered as chips with a distinct data attribute so one delegated handler
   // can tell them apart from the category chips.
-  const srcs = [['app','App traffic'],['dev','Dev activity'],['ALL','All sources']];
+  const srcs = [['ALL','All sources'],['dev','Dev activity'],['app','App traffic']];
   const srcHtml = '<div class="srcgroup">' + srcs.map(([f,l])=>
     '<div class="chip src '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div>';
   const cats = [['ALL','All'],['G','G · Data'],['R','R · Scope'],['O','O · Observe'],['W','W · Wall']];
