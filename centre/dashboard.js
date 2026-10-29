@@ -156,7 +156,7 @@ function buildData(scope) {
         ts: b.ts, event: b.event, category: c,
         decision: b.decision, reason: b.reason,
         tool: b.tool, path: b.path, command: b.command,
-        prompt: b.prompt, detail: detailOf(b),
+        prompt: b.prompt, detail: detailOf(b), summary: humanize(b),
         action: b.action || null, cmd_class: b.cmd_class || null,
         outcome: b.outcome || null, file_ext: b.file_ext || null,
         file_dir: b.file_dir || null,
@@ -285,6 +285,72 @@ function isBlock(b) {
 function isScopeFlag(b) {
   return b.event === "guardrail" && b.decision === "allow";
 }
+// --- Plain-English event summaries (readability layer) ---------------------
+// Turns a raw event into a human sentence a non-engineer can scan, using the
+// structured fields from improvement #1 (action, cmd_class, tool, path,
+// outcome). The RAW command/path is still shipped separately and shown on
+// hover, so nothing is lost — this only changes the PRIMARY display.
+function humanize(b) {
+  const clip = (s, n = 90) => { const t = String(s || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + " …" : t; };
+  const fileName = (p) => { if (!p) return ""; const parts = String(p).replace(/\\/g, "/").split("/"); return parts[parts.length - 1] || p; };
+  const okTail = b.outcome === "error" ? " — failed" : (b.outcome === "success" ? "" : "");
+
+  // Prompts — show the user's ask directly.
+  if (b.event === "UserPromptSubmit") return "Asked: " + clip(b.prompt, 160);
+
+  // Guardrail decisions — the meaning, not the mechanics.
+  if (b.event === "guardrail") {
+    if (b.decision === "block") {
+      if (b.category === "G") return "Blocked a secret/credential from being written";
+      if (b.category === "W") return "Blocked a destructive action (recursive delete / exfiltration)";
+      return "Blocked a risky action";
+    }
+    const raw = (b.reason || "");
+    if (/network egress/i.test(raw)) { const u = (raw.match(/https?:\/\/[^\s)]+/i) || [])[0]; return "Reached the network" + (u ? " (" + u.replace(/^https?:\/\//, "") + ")" : ""); }
+    if (/dependency install/i.test(raw)) return "Installed a dependency (widens the trusted code)";
+    if (/outside the workspace/i.test(raw)) return "Accessed a file outside the project folder";
+    if (/guardrails themselves/i.test(raw)) return "Modified the GROW guardrails";
+    return clip(raw);
+  }
+
+  // File events.
+  if (b.event === "PostFileCreate") return "Created file " + fileName(b.path);
+  if (b.event === "PostFileSave")   return "Edited file " + fileName(b.path);
+  if (b.event === "PostFileDelete") return "Deleted file " + fileName(b.path);
+
+  // Tool runs — translate by command class first, then tool kind.
+  if (b.event === "PostToolUse" || b.action === "tool.run") {
+    const cmd = b.command || "";
+    switch (b.cmd_class) {
+      case "git":             return "Ran a git command" + (/(commit)/i.test(cmd) ? " (commit)" : "") + okTail;
+      case "package-install": return "Installed a dependency" + okTail;
+      case "network":         { const u = (cmd.match(/https?:\/\/[^\s"'`)]+/i) || [])[0]; return "Made a network request" + (u ? " to " + u.replace(/^https?:\/\//, "").slice(0, 40) : "") + okTail; }
+      case "test":            return "Ran tests" + (b.outcome === "error" ? " — some failed" : (b.outcome === "success" ? " — passed" : "")); 
+      case "build":           return "Built the project" + okTail;
+      case "delete":          return "Ran a delete command" + okTail;
+    }
+    // Tool-specific fallbacks (file reads, searches, etc.).
+    const tool = (b.tool || "").toLowerCase();
+    if (/read_file|read_code/.test(tool))      return "Read file " + fileName(b.path);
+    if (/list_directory/.test(tool))           return "Listed a directory" + (b.path ? " (" + fileName(b.path) + ")" : "");
+    if (/grep_search|file_search/.test(tool))  return "Searched the codebase";
+    if (/str_replace|fs_write|fs_append/.test(tool)) return "Edited file " + fileName(b.path) + okTail;
+    if (/delete_file/.test(tool))              return "Deleted file " + fileName(b.path);
+    if (/execute_pwsh|control_pwsh/.test(tool)) return "Ran a command" + okTail;
+    if (cmd) return "Ran a command" + okTail;
+    return b.tool ? ("Used tool: " + b.tool) : "Performed an action";
+  }
+
+  // Runtime-agent AI interaction (app traffic).
+  if (b.event === "AIInteraction") {
+    const flags = Array.isArray(b.findings) && b.findings.length ? " — flagged: " + b.findings.map((x) => x.rule).join(", ") : "";
+    return "AI call" + (b.model ? " (" + b.model + ")" : "") + flags;
+  }
+
+  // Fallback.
+  return b.path ? ("Touched " + fileName(b.path)) : (b.tool || b.event || "Event");
+}
+
 function detailOf(b) {
   // Collapse whitespace/newlines and cap length so long shell one-liners don't
   // sprawl across the log. Keeps it readable without losing the gist.
@@ -622,6 +688,8 @@ const PAGE = `<!doctype html>
   tbody tr{transition:background .12s}
   tbody tr:hover td{background:rgba(74,222,128,.05)}
   th.c-time,td.c-time{width:160px} th.c-dev,td.c-dev{width:130px} th.c-proj,td.c-proj{width:150px}
+  td.detail .evsum{display:block;color:var(--txt)}
+  td.detail .evraw{display:block;margin-top:2px;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .analytics{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:4px 0 12px;font-size:12px}
   .agroup{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .astat{padding:3px 9px;border:1px solid var(--line);border-radius:12px;color:var(--muted)} .astat b{color:var(--txt)}
@@ -1072,6 +1140,8 @@ function renderActivity(){
   })();
   document.getElementById('actBody').innerHTML = rows.slice(0,2000).map(e=>{
     const d = esc(e.detail||'');
+    const sum = esc(e.summary||e.detail||'');
+    const hasRaw = e.detail && e.detail !== e.summary;
     const proj = e.project && e.project !== "_" ? e.project : "—";
     return '<tr><td class="c-time mono">'+when(e.ts)+'</td>'+
       '<td class="c-dev mono">'+esc(e.device)+'</td>'+
@@ -1081,7 +1151,7 @@ function renderActivity(){
       '<td class="c-type">'+(e.cmd_class?'<span class="ctype">'+esc(e.cmd_class)+'</span>':'')+'</td>'+
       '<td class="c-out">'+(e.outcome?'<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>':'')+'</td>'+
       '<td class="c-tool mono">'+esc(e.tool||'')+'</td>'+
-      '<td class="detail" title="'+d+'">'+d+'</td></tr>';
+      '<td class="detail" title="'+d+'"><span class="evsum">'+sum+'</span>'+(hasRaw?'<span class="evraw mono">'+d+'</span>':'')+'</td></tr>';
   }).join('');
 }
 
