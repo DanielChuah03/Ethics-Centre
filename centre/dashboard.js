@@ -115,7 +115,8 @@ function buildData(scope) {
 
   const devices = [];
   const events = []; // flat, decrypted, within scope
-  let totals = { total: 0, G: 0, R: 0, O: 0, W: 0, blocks: 0, scopeFlags: 0 };
+  let totals = { total: 0, G: 0, R: 0, O: 0, W: 0, blocks: 0, scopeFlags: 0,
+    byCmdClass: {}, byOutcome: { success: 0, error: 0 } };
 
   for (const d of store.listDevices()) {
     if (scopeOrg && d.org !== scopeOrg) continue; // skip other orgs entirely
@@ -156,7 +157,12 @@ function buildData(scope) {
         decision: b.decision, reason: b.reason,
         tool: b.tool, path: b.path, command: b.command,
         prompt: b.prompt, detail: detailOf(b),
+        action: b.action || null, cmd_class: b.cmd_class || null,
+        outcome: b.outcome || null, file_ext: b.file_ext || null,
+        file_dir: b.file_dir || null,
       });
+      if (b.cmd_class) totals.byCmdClass[b.cmd_class] = (totals.byCmdClass[b.cmd_class]||0) + 1;
+      if (b.outcome === "success" || b.outcome === "error") totals.byOutcome[b.outcome]++;
     }
     // Majority of events from the runtime agent → it's an app partition.
     const kind = decrypted.length > 0 && appSignals >= decrypted.length / 2 ? "app" : "dev";
@@ -616,6 +622,14 @@ const PAGE = `<!doctype html>
   tbody tr{transition:background .12s}
   tbody tr:hover td{background:rgba(74,222,128,.05)}
   th.c-time,td.c-time{width:160px} th.c-dev,td.c-dev{width:130px} th.c-proj,td.c-proj{width:150px}
+  .analytics{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:4px 0 12px;font-size:12px}
+  .agroup{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .astat{padding:3px 9px;border:1px solid var(--line);border-radius:12px;color:var(--muted)} .astat b{color:var(--txt)}
+  .astat.good b{color:#6ee7a8} .astat.warn b{color:#f4c15d} .astat.bad b{color:#ff8a8a}
+  .agroup.cmdmix{gap:6px} .amuted{color:var(--dim)}
+  th.c-act,td.c-act{width:86px;font-size:12px;color:var(--muted)}
+  th.c-type,td.c-type{width:104px} .ctype{font-size:11px;padding:1px 6px;border:1px solid var(--line);border-radius:10px;color:var(--muted)}
+  th.c-out,td.c-out{width:76px} .outcome{font-size:11px;padding:1px 6px;border-radius:10px} .outcome.success{color:#6ee7a8;background:rgba(110,231,168,.12)} .outcome.error{color:#ff8a8a;background:rgba(255,138,138,.14)}
   th.c-cat,td.c-cat{width:52px} th.c-tool,td.c-tool{width:110px}
   td.c-proj{overflow:hidden;text-overflow:ellipsis;color:var(--accent)}
   th.c-tok,td.c-tok{width:110px} th.c-stat,td.c-stat{width:120px} th.c-num,td.c-num{width:80px}
@@ -708,7 +722,8 @@ const PAGE = `<!doctype html>
         <select id="actProj"><option value="ALL">All projects</option></select>
       </label>
     </div>
-    <div class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-proj">Project</th><th class="c-cat">Cat</th><th class="c-tool">Tool</th><th>Detail (decrypted)</th></tr></thead>
+    <div id="actAnalytics" class="analytics"></div>
+    <div class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-proj">Project</th><th class="c-cat">Cat</th><th class="c-act">Action</th><th class="c-type">Type</th><th class="c-out">Outcome</th><th class="c-tool">Tool</th><th>Detail (decrypted)</th></tr></thead>
     <tbody id="actBody"></tbody></table></div>
     <div class="empty hidden" id="actEmpty">No events to show for this filter.</div>
   </section>
@@ -1036,6 +1051,25 @@ function renderActivity(){
 
   document.getElementById('actLabel').textContent = 'Event log · '+rows.length+' event'+(rows.length===1?'':'s')+' (decrypted at centre)';
   document.getElementById('actEmpty').classList.toggle('hidden', rows.length>0);
+  // --- Analytics strip (improvement #3): guard decisions + command mix + outcomes.
+  (function(){
+    const blocks = rows.filter(e=>e.decision==='block').length;
+    const flags  = rows.filter(e=>e.decision==='allow' && e.category==='R').length;
+    const cmd = {}; let ok=0, err=0;
+    for (const e of rows){
+      if (e.cmd_class) cmd[e.cmd_class]=(cmd[e.cmd_class]||0)+1;
+      if (e.outcome==='success') ok++; else if (e.outcome==='error') err++;
+    }
+    const pill=(label,val,cls)=> '<span class="astat '+(cls||'')+'"><b>'+val+'</b> '+label+'</span>';
+    const topCmd = Object.entries(cmd).sort((a,b)=>b[1]-a[1]).slice(0,6)
+      .map(([k,v])=>'<span class="ctype">'+esc(k)+' <b>'+v+'</b></span>').join('');
+    const errRate = (ok+err)>0 ? Math.round(err*100/(ok+err)) : 0;
+    const html = '<div class="agroup">'+
+      pill('blocked', blocks, blocks>0?'bad':'')+pill('scope flags', flags, flags>0?'warn':'')+
+      pill('ok', ok, 'good')+pill('errors', err, err>0?'bad':'')+pill('err rate', errRate+'%', errRate>0?'warn':'')+
+      '</div>'+(topCmd?'<div class="agroup cmdmix"><span class="amuted">commands:</span>'+topCmd+'</div>':'');
+    const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
+  })();
   document.getElementById('actBody').innerHTML = rows.slice(0,2000).map(e=>{
     const d = esc(e.detail||'');
     const proj = e.project && e.project !== "_" ? e.project : "—";
@@ -1043,6 +1077,9 @@ function renderActivity(){
       '<td class="c-dev mono">'+esc(e.device)+'</td>'+
       '<td class="c-proj mono" title="'+esc(proj)+'">'+esc(proj)+'</td>'+
       '<td class="c-cat"><span class="cat '+e.category+'">'+CAT_LABEL[e.category]+'</span></td>'+
+      '<td class="c-act mono">'+esc(e.action||'')+'</td>'+
+      '<td class="c-type">'+(e.cmd_class?'<span class="ctype">'+esc(e.cmd_class)+'</span>':'')+'</td>'+
+      '<td class="c-out">'+(e.outcome?'<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>':'')+'</td>'+
       '<td class="c-tool mono">'+esc(e.tool||'')+'</td>'+
       '<td class="detail" title="'+d+'">'+d+'</td></tr>';
   }).join('');
