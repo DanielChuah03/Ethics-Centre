@@ -2078,7 +2078,7 @@ async function doReset(username){
   clearSelection(); loadProvisionUsers();
 }
 
-refresh(); setInterval(refresh, 5000);
+refresh(); /* auto-refresh temporarily disabled for debugging */
 </script>
 </body>
 </html>`;
