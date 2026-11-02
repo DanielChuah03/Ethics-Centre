@@ -825,20 +825,12 @@ const PAGE = `<!doctype html>
   tr.turnrow td{border-top:1px solid var(--line);padding-top:10px;padding-bottom:10px}
   .tcaret{display:inline-block;width:12px;color:var(--accent);margin-right:4px}
   td.turnhead{white-space:normal}
-  /* Force a plain sans-serif with ligatures OFF on the prompt header — the mono
-     web font was mis-rendering lowercase s / S glyphs in some browsers. */
-  td.turnhead, td.turnhead .tprompt{
-    font-family:Arial,Helvetica,'Segoe UI',sans-serif !important;
-    font-variant-ligatures:none !important;
-    font-feature-settings:"liga" 0,"calt" 0 !important;
-  }
   .tprompt{color:var(--txt);font-weight:600;margin-right:10px}
   .tnoprompt{color:var(--faint);font-weight:400;font-style:italic}
-  .tchips{display:inline-flex;flex-wrap:wrap;gap:5px;vertical-align:middle}
+  .tchips{display:inline-flex;flex-wrap:wrap;gap:5px;vertical-align:middle;margin-left:4px}
   .tchip{font-size:10px;padding:1px 7px;border:1px solid var(--line);border-radius:10px;color:var(--dim)}
   .tchip.bad{color:#ff8a8a;border-color:rgba(255,138,138,.4)} .tchip.warn{color:#f4c15d;border-color:rgba(244,193,93,.4)}
-  .tcount{font-size:10px;color:var(--faint);margin-left:2px}
-  tbody.turnbody.collapsed{display:none}
+  tr.turn-collapsed{display:none}
   tr.childrow td.c-time{padding-left:22px;color:var(--dim)}
   tr.childrow td{background:var(--bg)}
   tr.can-expand{cursor:pointer} tr.can-expand:hover td{background:var(--surface2)}
@@ -1309,7 +1301,10 @@ function renderActivity(){
   const cats = [['ALL','All'],['G','G'],['R','R'],['O','O'],['W','W']];
   const catHtml = '<div class="fgroup"><span class="fglabel">Pillar</span><div class="seg">' + cats.map(([f,l])=>
     '<div class="segbtn '+(f!=='ALL'?'cat '+f:'')+' '+(actFilter===f?'active':'')+'" data-f="'+f+'" title="'+({ALL:'All pillars',G:'Govern',R:'Restrict',O:'Observe',W:'Wall off'}[f])+'">'+l+'</div>').join('') + '</div></div>';
-  document.getElementById('actFilters').innerHTML = srcHtml + catHtml;
+  const views = [['group','Grouped'],['flat','Flat']];
+  const viewHtml = '<div class="fgroup"><span class="fglabel">View</span><div class="seg">' + views.map(([f,l])=>
+    '<div class="segbtn '+(((window.groupMode?'group':'flat')===f)?'active':'')+'" data-view="'+f+'">'+l+'</div>').join('') + '</div></div>';
+  document.getElementById('actFilters').innerHTML = srcHtml + catHtml + viewHtml;
 
   let rows = eventsForOrg();
 
@@ -1354,10 +1349,7 @@ function renderActivity(){
   })();
   // Render mode: grouped-by-turn (default) or flat, toggled by the view chip.
   if (window.groupMode === undefined) window.groupMode = true;
-
-  // Flat view only — grouping render had a text-rendering defect, so the
-  // Event Log always uses the reliable flat list.
-  document.getElementById('actBody').innerHTML = renderFlat(rows);
+  document.getElementById('actBody').innerHTML = window.groupMode ? renderGrouped(rows) : renderFlat(rows);
 }
 
 // Build the flat per-event rows (the original view).
@@ -1396,71 +1388,62 @@ function buildKv(e){
 // Group events into turns: a new turn starts at each UserPromptSubmit; all
 // following events (tools, files, guard decisions) belong to it until the next
 // prompt. Events before the first prompt form an "untitled" lead group.
+// Grouped view, rebuilt for the 4-column table (Time · Device · Cat · Detail).
+// Each turn = a header row (the prompt + summary chips) followed by indented
+// child action rows. No nested <tbody>, correct colspans — the previous version
+// had 7/9-column markup against a 4-column table, which broke rendering.
 function renderGrouped(rows){
-  // chronological so turns read top-to-bottom in order
   const sorted = rows.slice().sort((a,b)=> new Date(a.ts) - new Date(b.ts));
   const groups = [];
   let cur = null;
   for (const e of sorted){
     if (e.event === 'UserPromptSubmit' || !cur){
       cur = { prompt: (e.event==='UserPromptSubmit' ? (e.prompt||e.summary||'') : null),
-              ts: e.ts, device: e.device, project: e.project, events: [] };
+              ts: e.ts, device: e.device, events: [] };
       groups.push(cur);
-      if (e.event === 'UserPromptSubmit') continue; // the prompt heads the group, not a child row
+      if (e.event === 'UserPromptSubmit') continue;
     }
     cur.events.push(e);
   }
-  // newest turn on top
-  groups.reverse();
+  groups.reverse(); // newest turn on top
 
-  return groups.slice(0,500).map((g,gi)=>{
-    // Summaries for the turn header: counts + any guard flags.
+  let html = '';
+  groups.slice(0,500).forEach((g,gi)=>{
     const n = g.events.length;
-    const edits = g.events.filter(e=>/^file\.(save|create)$/.test(e.action||'')||/str_replace|fs_write|fs_append/.test(e.tool||'')).length;
-    const cmds = g.events.filter(e=>/execute_pwsh|control_pwsh/.test(e.tool||'')).length;
     const blocks = g.events.filter(e=>e.decision==='block').length;
-    const flags = g.events.filter(e=>e.decision==='allow'&&e.category==='R').length;
-    const errs = g.events.filter(e=>e.outcome==='error').length;
-    const proj = g.project && g.project!=="_" ? g.project : "—";
+    const flags  = g.events.filter(e=>e.decision==='allow' && e.category==='R').length;
 
     const chips = [];
-    if (edits) chips.push('<span class="tchip">'+edits+' edit'+(edits>1?'s':'')+'</span>');
-    if (cmds) chips.push('<span class="tchip">'+cmds+' cmd'+(cmds>1?'s':'')+'</span>');
+    chips.push('<span class="tchip">'+n+' action'+(n===1?'':'s')+'</span>');
     if (blocks) chips.push('<span class="tchip bad">'+blocks+' blocked</span>');
-    if (flags) chips.push('<span class="tchip warn">'+flags+' scope</span>');
-    if (errs) chips.push('<span class="tchip bad">'+errs+' error'+(errs>1?'s':'')+'</span>');
-    chips.push('<span class="tcount">'+n+' action'+(n===1?'':'s')+'</span>');
+    if (flags)  chips.push('<span class="tchip warn">'+flags+' scope</span>');
 
-    const title = g.prompt ? esc(redact(clip(g.prompt,140))) : '<span class="tnoprompt">(activity before first prompt)</span>';
+    const title = g.prompt
+      ? '<span class="tprompt">'+esc(redact(clip(g.prompt,160)))+'</span>'
+      : '<span class="tnoprompt">activity before first prompt</span>';
 
-    // child rows: one line per action, the plain-English summary + category dot.
-    const children = g.events.map((e,ci)=>{
-      const kv = buildKv(e);
-      const sum = esc(redact(e.summary||e.detail||e.action||''));
-      const catDot = '<span class="cat '+e.category+'" title="'+CAT_LABEL[e.category]+'">'+CAT_LABEL[e.category]+'</span>';
-      const out = e.outcome ? '<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>' : '';
-      const panel = '<tr class="xpanel hidden" data-xi="g'+gi+'c'+ci+'"><td colspan="9"><div class="xwrap">'+
-        kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
-        '</div></td></tr>';
-      return '<tr class="evrow childrow can-expand" data-i="g'+gi+'c'+ci+'">'+
-        '<td class="c-time mono"><span class="caret">▸</span>'+when(e.ts)+'</td>'+
-        '<td class="c-dev"></td><td class="c-proj"></td>'+
-        '<td class="c-cat">'+catDot+'</td>'+
-        '<td class="c-act mono">'+esc(e.action||'')+'</td>'+
-        '<td class="c-type">'+(e.cmd_class?'<span class="ctype">'+esc(e.cmd_class)+'</span>':'')+'</td>'+
-        '<td class="c-out">'+out+'</td>'+
-        '<td class="c-tool mono">'+esc(e.tool||'')+'</td>'+
-        '<td class="detail"><span class="evsum">'+sum+'</span></td></tr>'+panel;
-    }).join('');
-
-    const header = '<tr class="turnrow" data-turn="'+gi+'">'+
+    // Header row: Time | (colspan 3) prompt + chips
+    html += '<tr class="turnrow" data-turn="'+gi+'">'+
       '<td class="c-time mono"><span class="tcaret">▾</span>'+when(g.ts)+'</td>'+
-      '<td colspan="7" class="turnhead"><span class="tprompt">'+title+'</span>'+
-        '<span class="tchips">'+chips.join('')+'</span></td>'+
-      '<td class="c-proj mono" title="'+esc(proj)+'">'+esc(proj)+'</td></tr>';
+      '<td colspan="3" class="turnhead">'+title+'<span class="tchips">'+chips.join('')+'</span></td>'+
+      '</tr>';
 
-    return header + '<tbody class="turnbody" data-turnbody="'+gi+'">'+children+'</tbody>';
-  }).join('');
+    // Child action rows (4 cells each: Time | Device | Cat | Detail)
+    g.events.forEach((e,ci)=>{
+      const xi = 'g'+gi+'c'+ci;
+      const sum = esc(redact(e.summary||e.detail||e.action||''));
+      const kv = buildKv(e);
+      html += '<tr class="evrow childrow turn-'+gi+' can-expand" data-i="'+xi+'">'+
+        '<td class="c-time mono"><span class="caret">▸</span>'+when(e.ts)+'</td>'+
+        '<td class="c-dev mono">'+esc(e.device||'')+'</td>'+
+        '<td class="c-cat"><span class="cat '+e.category+'">'+CAT_LABEL[e.category]+'</span></td>'+
+        '<td class="detail"><span class="evsum">'+sum+'</span></td></tr>'+
+        '<tr class="xpanel hidden turn-'+gi+'" data-xi="'+xi+'"><td colspan="4"><div class="xwrap">'+
+          kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
+        '</div></td></tr>';
+    });
+  });
+  return html;
 }
 
 function alertRow(e){
@@ -1666,15 +1649,19 @@ document.getElementById('actProj').addEventListener('change', ev=>{
 });
 // Expand/collapse an event row to reveal its full detail panel.
 document.getElementById('actBody').addEventListener('click', ev=>{
-  // Turn header click → collapse/expand the whole turn's body.
+  // Turn header click → collapse/expand all rows belonging to that turn.
   const turn = ev.target.closest('tr.turnrow');
   if (turn) {
     const gi = turn.getAttribute('data-turn');
-    const body = document.querySelector('tbody.turnbody[data-turnbody="'+gi+'"]');
-    if (body) {
-      const collapsed = body.classList.toggle('collapsed');
-      const car = turn.querySelector('.tcaret'); if (car) car.textContent = collapsed ? '▸' : '▾';
-    }
+    const kids = document.querySelectorAll('tr.turn-'+gi);
+    let nowCollapsed = false;
+    kids.forEach(k=>{
+      // don't force-open expand panels that were closed; just hide/show the row
+      const willHide = !k.classList.contains('turn-collapsed');
+      k.classList.toggle('turn-collapsed', willHide);
+      nowCollapsed = willHide;
+    });
+    const car = turn.querySelector('.tcaret'); if (car) car.textContent = nowCollapsed ? '▸' : '▾';
     return;
   }
   // Row click → expand/collapse that row's detail panel.
