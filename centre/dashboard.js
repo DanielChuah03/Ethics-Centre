@@ -1299,10 +1299,7 @@ function renderActivity(){
   const cats = [['ALL','All'],['G','G'],['R','R'],['O','O'],['W','W']];
   const catHtml = '<div class="seg">' + cats.map(([f,l])=>
     '<div class="segbtn '+(f!=='ALL'?'cat '+f:'')+' '+(actFilter===f?'active':'')+'" data-f="'+f+'" title="'+({ALL:'All pillars',G:'Govern',R:'Restrict',O:'Observe',W:'Wall off'}[f])+'">'+l+'</div>').join('') + '</div>';
-  const viewHtml = '<div class="seg">'+
-    '<div class="segbtn '+(window.groupMode?'active':'')+'" data-view="group">Grouped</div>'+
-    '<div class="segbtn '+(!window.groupMode?'active':'')+'" data-view="flat">Flat</div></div>';
-  document.getElementById('actFilters').innerHTML = srcHtml + catHtml + viewHtml;
+  document.getElementById('actFilters').innerHTML = srcHtml + catHtml;
 
   let rows = eventsForOrg();
 
@@ -1347,11 +1344,9 @@ function renderActivity(){
   // Render mode: grouped-by-turn (default) or flat, toggled by the view chip.
   if (window.groupMode === undefined) window.groupMode = true;
 
-  if (window.groupMode) {
-    document.getElementById('actBody').innerHTML = renderGrouped(rows);
-  } else {
-    document.getElementById('actBody').innerHTML = renderFlat(rows);
-  }
+  // Flat view only — grouping render had a text-rendering defect, so the
+  // Event Log always uses the reliable flat list.
+  document.getElementById('actBody').innerHTML = renderFlat(rows);
 }
 
 // Build the flat per-event rows (the original view).
