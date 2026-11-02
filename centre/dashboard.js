@@ -436,9 +436,12 @@ const PAGE = `<!doctype html>
   .pill-g{color:var(--accent);font-weight:500}
   .tagline{color:var(--faint);font-style:italic}
   .live{display:inline-flex;align-items:center;gap:6px;color:var(--good);font-weight:600}
-  .livedot{width:7px;height:7px;border-radius:50%;background:var(--good);
-    box-shadow:0 0 0 0 rgba(69,192,138,.6);animation:pulse 2.4s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(69,192,138,.5)}70%{box-shadow:0 0 0 7px rgba(69,192,138,0)}100%{box-shadow:0 0 0 0 rgba(69,192,138,0)}}
+  .livedot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--good);
+    animation:liveGlow 1.8s ease-in-out infinite}
+  .livedot::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--good);
+    animation:liveRadiate 1.8s ease-out infinite}
+  @keyframes liveRadiate{0%{box-shadow:0 0 0 0 rgba(74,222,128,.55);opacity:1}70%{box-shadow:0 0 0 10px rgba(74,222,128,0);opacity:0}100%{box-shadow:0 0 0 0 rgba(74,222,128,0);opacity:0}}
+  @keyframes liveGlow{0%,100%{box-shadow:0 0 3px 0 rgba(74,222,128,.5);transform:scale(1)}50%{box-shadow:0 0 8px 1px rgba(74,222,128,.85);transform:scale(1.15)}}
   @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
   .topbar{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
@@ -737,7 +740,7 @@ const PAGE = `<!doctype html>
    <div class="logo">G</div>
    <div>
      <h1>Ethics Centre</h1>
-     <div class="sub"><span class="pill-g">Govern</span><span class="dotsep">·</span><span class="pill-g">Restrict</span><span class="dotsep">·</span><span class="pill-g">Observe</span><span class="dotsep">·</span><span class="pill-g">Wall off</span><span class="dotsep">·</span><span class="tagline">a framework to secure AI</span><span class="dotsep">·</span><span class="live"><span class="livedot"></span>live</span></div>
+     <div class="sub"><span class="pill-g">Govern</span><span class="dotsep">·</span><span class="pill-g">Restrict</span><span class="dotsep">·</span><span class="pill-g">Observe</span><span class="dotsep">·</span><span class="pill-g">Wall off</span><span class="dotsep">·</span><span class="live"><span class="livedot"></span>live</span></div>
    </div>
   </div>
   <div class="topbar">
