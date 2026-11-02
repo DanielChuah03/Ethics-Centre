@@ -833,6 +833,22 @@ const PAGE = `<!doctype html>
   tr.turn-collapsed{display:none}
   tr.childrow td.c-time{padding-left:22px;color:var(--dim)}
   tr.childrow td{background:var(--bg)}
+  /* --- Grouped div-card view (avoids the table-row glyph bug) --- */
+  #actGrouped{display:flex;flex-direction:column;gap:10px}
+  .gcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .ghead{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:var(--surface2);flex-wrap:wrap}
+  .ghead:hover{background:var(--surface)}
+  .gcaret{color:var(--accent);width:12px;display:inline-block}
+  .gtime{font-size:11px;color:var(--faint);white-space:nowrap}
+  .gkids{display:flex;flex-direction:column}
+  .gkids.collapsed{display:none}
+  .gaction{display:flex;align-items:center;gap:12px;padding:8px 14px 8px 34px;border-top:1px solid var(--line-soft);cursor:pointer}
+  .gaction:hover{background:var(--surface2)}
+  .ga-time{font-size:11px;color:var(--faint);white-space:nowrap;min-width:92px}
+  .ga-sum{color:var(--txt);font-size:13px;overflow-wrap:anywhere}
+  .gpanel{display:none;padding:4px 14px 12px 34px;background:var(--bg2)}
+  .gpanel:not(.hidden){display:block}
+  .gpanel.hidden{display:none}
   tr.can-expand{cursor:pointer} tr.can-expand:hover td{background:var(--surface2)}
   .caret{display:inline-block;width:12px;color:var(--faint);transition:transform .15s;margin-right:2px}
   tr.open .caret{transform:rotate(90deg);color:var(--accent)}
@@ -943,8 +959,9 @@ const PAGE = `<!doctype html>
         <select id="actProj"><option value="ALL">All projects</option></select>
       </label>
     </div>
-    <div class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-cat">Cat</th><th>Detail (decrypted)</th></tr></thead>
+    <div id="actTablePanel" class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-cat">Cat</th><th>Detail (decrypted)</th></tr></thead>
     <tbody id="actBody"></tbody></table></div>
+    <div id="actGrouped" class="hidden"></div>
     <div class="empty hidden" id="actEmpty">No events to show for this filter.</div>
   </section>
 
@@ -1349,7 +1366,17 @@ function renderActivity(){
   })();
   // Render mode: grouped-by-turn (default) or flat, toggled by the view chip.
   if (window.groupMode === undefined) window.groupMode = true;
-  document.getElementById('actBody').innerHTML = window.groupMode ? renderGrouped(rows) : renderFlat(rows);
+  const tablePanel = document.getElementById('actTablePanel');
+  const groupedBox = document.getElementById('actGrouped');
+  if (window.groupMode) {
+    groupedBox.innerHTML = renderGrouped(rows);
+    groupedBox.classList.remove('hidden');
+    tablePanel.classList.add('hidden');
+  } else {
+    document.getElementById('actBody').innerHTML = renderFlat(rows);
+    tablePanel.classList.remove('hidden');
+    groupedBox.classList.add('hidden');
+  }
 }
 
 // Build the flat per-event rows (the original view).
@@ -1407,6 +1434,8 @@ function renderGrouped(rows){
   }
   groups.reverse(); // newest turn on top
 
+  // Render as DIV CARDS (no <table>/<tr>/colspan). The table-row grouping
+  // triggered a browser glyph-render bug; plain divs avoid it entirely.
   let html = '';
   groups.slice(0,500).forEach((g,gi)=>{
     const n = g.events.length;
@@ -1422,26 +1451,31 @@ function renderGrouped(rows){
       ? '<span class="tprompt">'+esc(redact(clip(g.prompt,160)))+'</span>'
       : '<span class="tnoprompt">activity before first prompt</span>';
 
-    // Header row: Time | (colspan 3) prompt + chips
-    html += '<tr class="turnrow" data-turn="'+gi+'">'+
-      '<td class="c-time mono"><span class="tcaret">▾</span>'+when(g.ts)+'</td>'+
-      '<td colspan="3" class="turnhead">'+title+'<span class="tchips">'+chips.join('')+'</span></td>'+
-      '</tr>';
-
-    // Child action rows (4 cells each: Time | Device | Cat | Detail)
+    // Child action lines
+    let kids = '';
     g.events.forEach((e,ci)=>{
       const xi = 'g'+gi+'c'+ci;
       const sum = esc(redact(e.summary||e.detail||e.action||''));
       const kv = buildKv(e);
-      html += '<tr class="evrow childrow turn-'+gi+' can-expand" data-i="'+xi+'">'+
-        '<td class="c-time mono"><span class="caret">▸</span>'+when(e.ts)+'</td>'+
-        '<td class="c-dev mono">'+esc(e.device||'')+'</td>'+
-        '<td class="c-cat"><span class="cat '+e.category+'">'+CAT_LABEL[e.category]+'</span></td>'+
-        '<td class="detail"><span class="evsum">'+sum+'</span></td></tr>'+
-        '<tr class="xpanel hidden turn-'+gi+'" data-xi="'+xi+'"><td colspan="4"><div class="xwrap">'+
-          kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
-        '</div></td></tr>';
+      const panel = '<div class="gpanel hidden" data-xi="'+xi+'">'+
+        kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
+        '</div>';
+      kids += '<div class="gaction" data-i="'+xi+'">'+
+        '<span class="ga-time mono">'+when(e.ts)+'</span>'+
+        '<span class="cat '+e.category+'">'+CAT_LABEL[e.category]+'</span>'+
+        '<span class="ga-sum">'+sum+'</span>'+
+        '</div>'+panel;
     });
+
+    html += '<div class="gcard" data-turn="'+gi+'">'+
+      '<div class="ghead">'+
+        '<span class="gcaret">▾</span>'+
+        '<span class="gtime mono">'+when(g.ts)+'</span>'+
+        title+
+        '<span class="tchips">'+chips.join('')+'</span>'+
+      '</div>'+
+      '<div class="gkids" data-kids="'+gi+'">'+kids+'</div>'+
+    '</div>';
   });
   return html;
 }
@@ -1672,6 +1706,28 @@ document.getElementById('actBody').addEventListener('click', ev=>{
   const open = !panel.classList.contains('hidden');
   panel.classList.toggle('hidden', open);
   tr.classList.toggle('open', !open);
+});
+// Grouped (div-card) view interactions.
+document.getElementById('actGrouped').addEventListener('click', ev=>{
+  // Card header → collapse/expand the turn's action list.
+  const head = ev.target.closest('.ghead');
+  if (head) {
+    const card = head.closest('.gcard');
+    const gi = card.getAttribute('data-turn');
+    const kids = card.querySelector('.gkids[data-kids="'+gi+'"]');
+    if (kids) {
+      const collapsed = kids.classList.toggle('collapsed');
+      const car = head.querySelector('.gcaret'); if (car) car.textContent = collapsed ? '▸' : '▾';
+    }
+    return;
+  }
+  // Action line → expand/collapse its detail panel.
+  const act = ev.target.closest('.gaction');
+  if (act) {
+    const xi = act.getAttribute('data-i');
+    const panel = document.querySelector('.gpanel[data-xi="'+xi+'"]');
+    if (panel) { panel.classList.toggle('hidden'); act.classList.toggle('open'); }
+  }
 });
 // Back to the all-orgs overview.
 document.getElementById('fleetTitle').addEventListener('click', ev=>{
