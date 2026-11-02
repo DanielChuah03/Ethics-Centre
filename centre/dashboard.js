@@ -825,7 +825,7 @@ const PAGE = `<!doctype html>
   tr.turnrow td{border-top:1px solid var(--line);padding-top:10px;padding-bottom:10px}
   .tcaret{display:inline-block;width:12px;color:var(--accent);margin-right:4px}
   td.turnhead{white-space:normal}
-  .tprompt{color:var(--txt);font-weight:600;margin-right:10px}
+  .tprompt{color:var(--txt);font-weight:400;margin-right:10px}
   .tnoprompt{color:var(--faint);font-weight:400;font-style:italic}
   .tchips{display:inline-flex;flex-wrap:wrap;gap:5px;vertical-align:middle;margin-left:4px}
   .tchip{font-size:10px;padding:1px 7px;border:1px solid var(--line);border-radius:10px;color:var(--dim)}
@@ -1425,7 +1425,7 @@ function renderGrouped(rows){
   let cur = null;
   for (const e of sorted){
     if (e.event === 'UserPromptSubmit' || !cur){
-      cur = { prompt: (e.event==='UserPromptSubmit' ? (e.prompt||e.summary||'') : null),
+      cur = { prompt: (e.event==='UserPromptSubmit' ? (e.summary||e.prompt||'') : null),
               ts: e.ts, device: e.device, events: [] };
       groups.push(cur);
       if (e.event === 'UserPromptSubmit') continue;
