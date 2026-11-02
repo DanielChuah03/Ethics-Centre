@@ -796,6 +796,13 @@ const PAGE = `<!doctype html>
   th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line-soft);vertical-align:top}
   td{overflow:hidden;text-overflow:ellipsis}
   td.detail{white-space:normal;overflow-wrap:anywhere;word-break:break-word;color:var(--txt)}
+  /* Force the Event Log body to a reliable system font (avoids a web-font glyph
+     rendering issue where lowercase 's' failed to draw in some browsers). */
+  #actBody td, #actBody .evsum, #actBody .tprompt, #actBody .mono{
+    font-family:ui-monospace,'Cascadia Code','Consolas','Courier New',monospace !important;
+    font-variant-ligatures:none;font-feature-settings:normal;text-rendering:optimizeLegibility;
+    -webkit-font-smoothing:auto;
+  }
   tr:last-child td{border-bottom:none}
   thead th{color:var(--faint);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;
     background:var(--surface2);position:sticky;top:0;backdrop-filter:blur(6px)}
