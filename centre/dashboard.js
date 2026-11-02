@@ -593,6 +593,8 @@ const PAGE = `<!doctype html>
   .fleetTitle{margin-bottom:18px}
 
   .strip{display:grid;grid-template-columns:repeat(6,1fr);gap:13px}
+  /* Event Log key-indicator tiles: auto-fit so 5 tiles space cleanly, with a gap before the filter row */
+  #actAnalytics.strip{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px}
   .stat{position:relative;overflow:hidden;background:var(--surface);
     border:1px solid var(--line);border-radius:var(--radius);padding:17px 18px;box-shadow:var(--shadow);
     transition:transform .18s, border-color .18s}
@@ -934,13 +936,13 @@ const PAGE = `<!doctype html>
 
   <section id="activity" class="hidden">
     <div class="section-label" id="actLabel">Event log</div>
+    <div id="actAnalytics" class="strip"></div>
     <div class="actbar">
       <div class="filters" id="actFilters"></div>
       <label class="projpick mono">project&nbsp;
         <select id="actProj"><option value="ALL">All projects</option></select>
       </label>
     </div>
-    <div id="actAnalytics" class="analytics"></div>
     <div class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-proj">Project</th><th class="c-cat">Cat</th><th class="c-act">Action</th><th class="c-type">Type</th><th class="c-out">Outcome</th><th class="c-tool">Tool</th><th>Detail (decrypted)</th></tr></thead>
     <tbody id="actBody"></tbody></table></div>
     <div class="empty hidden" id="actEmpty">No events to show for this filter.</div>
@@ -1332,13 +1334,14 @@ function renderActivity(){
       if (e.outcome==='success') ok++; else if (e.outcome==='error') err++;
     }
     const errRate = (ok+err)>0 ? Math.round(err*100/(ok+err)) : 0;
-    // One slim, uncluttered summary line — only the essentials.
-    const stat=(val,label,cls)=> '<span class="sstat '+(cls||'')+'"><b>'+val+'</b> '+label+'</span>';
+    // Key-indicator tiles (matches the Fleet page stat tiles).
+    const tile=(val,label,cls)=> '<div class="stat '+(cls||'')+'"><div class="v">'+val+'</div><div class="l">'+label+'</div></div>';
     const html =
-      stat(blocks,'blocked', blocks>0?'bad':'') +
-      stat(flags,'scope flags', flags>0?'warn':'') +
-      stat(errRate+'%','error rate', errRate>0?'warn':'') +
-      stat(rows.length,'events','mut');
+      tile(rows.length,'Events','accent') +
+      tile(blocks,'Blocked', blocks>0?'warn':'') +
+      tile(flags,'Scope flags', flags>0?'warn':'') +
+      tile(ok,'Clean','good') +
+      tile(errRate+'%','Error rate', errRate>0?'warn':'');
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
   // Render mode: grouped-by-turn (default) or flat, toggled by the view chip.
