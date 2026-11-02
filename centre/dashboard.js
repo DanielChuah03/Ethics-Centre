@@ -285,6 +285,28 @@ function isBlock(b) {
 function isScopeFlag(b) {
   return b.event === "guardrail" && b.decision === "allow";
 }
+// --- Display redaction (demo-safe) -----------------------------------------
+// Masks sensitive values in what is SHOWN ON SCREEN only. The stored event in
+// the Centre keeps the full raw command — this is presentation-only so IPs,
+// hostnames and key paths don't get flashed on a projector during a demo.
+function redact(s) {
+  if (!s) return s;
+  let out = String(s);
+  // IPv4 addresses -> [ip]
+  out = out.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[ip]');
+  // user@host -> [user]@[host]
+  out = out.replace(/\b[\w.-]+@[\w.-]+/g, '[user]@[host]');
+  // key / cert file paths -> [key]
+  // quoted path ending in a key extension (handles spaces): "...gec-ec2 (1).pem" -> "[key]"
+  out = out.replace(/"[^"]*\.(pem|key|ppk|pfx|p12)"/gi, '"[key]"');
+  // unquoted path token ending in a key extension
+  out = out.replace(/\S*\.(pem|key|ppk|pfx|p12)\b/gi, '[key]');
+  // common keyfile names without extension
+  out = out.replace(/\b(id_rsa|id_ed25519|id_ecdsa)\b/gi, '[key]');
+  // explicit host flags for ssh (-i already caught above); mask bare hostnames in URLs' host part is left intact
+  return out;
+}
+
 // --- Plain-English event summaries (readability layer) ---------------------
 // Turns a raw event into a human sentence a non-engineer can scan, using the
 // structured fields from improvement #1 (action, cmd_class, tool, path,
@@ -1170,15 +1192,15 @@ function renderActivity(){
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
   document.getElementById('actBody').innerHTML = rows.slice(0,2000).map((e,i)=>{
-    const d = esc(e.detail||'');
-    const sum = esc(e.summary||e.detail||'');
+    const d = esc(redact(e.detail||''));
+    const sum = esc(redact(e.summary||e.detail||''));
     const proj = e.project && e.project !== "_" ? e.project : "—";
     // Expanded detail panel: full command / path / reply, plus the facts.
     const kv = [];
-    if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(e.command)+'</pre>']);
-    if (e.path) kv.push(['Path', '<span class="mono">'+esc(e.path)+'</span>']);
+    if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(redact(e.command))+'</pre>']);
+    if (e.path) kv.push(['Path', '<span class="mono">'+esc(redact(e.path))+'</span>']);
     if (e.prompt && e.event==='UserPromptSubmit') kv.push(['Prompt','<pre class="xcmd">'+esc(e.prompt)+'</pre>']);
-    if (e.reason) kv.push(['Reason', esc(e.reason)]);
+    if (e.reason) kv.push(['Reason', esc(redact(e.reason))]);
     if (e.tool) kv.push(['Tool', '<span class="mono">'+esc(e.tool)+'</span>']);
     if (e.outcome) kv.push(['Outcome','<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>']);
     if (e.cmd_class) kv.push(['Type','<span class="ctype">'+esc(e.cmd_class)+'</span>']);
@@ -1201,8 +1223,8 @@ function renderActivity(){
 }
 
 function alertRow(e){
-  const r = esc((e.reason||e.detail||'').replace(/\\s*\\(see command\\)/,''));
-  const cmd = e.command ? '<div class="gcmd" title="'+esc(e.command)+'">$ '+esc(e.command)+'</div>' : '';
+  const r = esc(redact((e.reason||e.detail||'').replace(/\\s*\\(see command\\)/,'')));
+  const cmd = e.command ? '<div class="gcmd" title="'+esc(redact(e.command))+'">$ '+esc(redact(e.command))+'</div>' : '';
   return '<div class="arow '+(e.decision==='block'?'block':'scope')+'">'+
     '<span class="arow-time">'+when(e.ts)+'</span>'+
     '<span class="arow-dev">'+esc(e.device)+'</span>'+
