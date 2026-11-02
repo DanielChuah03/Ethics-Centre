@@ -842,15 +842,9 @@ const PAGE = `<!doctype html>
   .xv{flex:1 1 0;min-width:0;color:var(--txt);overflow-wrap:anywhere}
   .xcmd{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;color:var(--txt)}
   td.detail .evraw{display:block;margin-top:2px;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .analytics{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}
-  .acard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 13px}
-  .ahd{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
-  .abody{display:flex;gap:16px;align-items:flex-end}
-  .astat .av{font-size:19px;font-weight:700;line-height:1;color:var(--txt)}
-  .astat .al{font-size:10px;color:var(--dim);margin-top:3px}
-  .astat.good .av{color:#4ade80} .astat.warn .av{color:#f4c15d} .astat.bad .av{color:#ff8a8a} .astat.mut .av{color:var(--faint)}
-  .cchips{display:flex;flex-wrap:wrap;gap:6px;max-width:420px}
-  .cchip{display:inline-flex;gap:6px;align-items:center;font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:10px;color:var(--dim)} .cchip b{color:var(--txt)}
+  .analytics{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin:4px 0 14px;font-size:12.5px;color:var(--dim)}
+  .sstat b{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;margin-right:3px}
+  .sstat.good b{color:#4ade80} .sstat.warn b{color:#f4c15d} .sstat.bad b{color:#ff8a8a} .sstat.mut b{color:var(--faint)}
   th.c-act,td.c-act{width:86px;font-size:12px;color:var(--muted)}
   th.c-type,td.c-type{width:104px} .ctype{font-size:11px;padding:1px 6px;border:1px solid var(--line);border-radius:10px;color:var(--muted)}
   th.c-out,td.c-out{width:76px} .outcome{font-size:11px;padding:1px 6px;border-radius:10px} .outcome.success{color:#6ee7a8;background:rgba(110,231,168,.12)} .outcome.error{color:#ff8a8a;background:rgba(255,138,138,.14)}
@@ -1341,14 +1335,13 @@ function renderActivity(){
       if (e.outcome==='success') ok++; else if (e.outcome==='error') err++;
     }
     const errRate = (ok+err)>0 ? Math.round(err*100/(ok+err)) : 0;
-    const stat=(val,label,cls)=> '<div class="astat '+(cls||'')+'"><div class="av">'+val+'</div><div class="al">'+label+'</div></div>';
-    const topCmd = Object.entries(cmd).sort((a,b)=>b[1]-a[1]).slice(0,6)
-      .map(([k,v])=>'<span class="cchip">'+esc(k)+'<b>'+v+'</b></span>').join('');
-    const card=(title,inner)=> '<div class="acard"><div class="ahd">'+title+'</div><div class="abody">'+inner+'</div></div>';
+    // One slim, uncluttered summary line — only the essentials.
+    const stat=(val,label,cls)=> '<span class="sstat '+(cls||'')+'"><b>'+val+'</b> '+label+'</span>';
     const html =
-      card('Guardrails', stat(blocks,'blocked',blocks>0?'bad':'mut')+stat(flags,'scope flags',flags>0?'warn':'mut')) +
-      card('Outcomes', stat(ok,'ok','good')+stat(err,'errors',err>0?'bad':'mut')+stat(errRate+'%','err rate',errRate>0?'warn':'mut')) +
-      (topCmd ? card('Commands', '<div class="cchips">'+topCmd+'</div>') : '');
+      stat(blocks,'blocked', blocks>0?'bad':'') +
+      stat(flags,'scope flags', flags>0?'warn':'') +
+      stat(errRate+'%','error rate', errRate>0?'warn':'') +
+      stat(rows.length,'events','mut');
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
   // Render mode: grouped-by-turn (default) or flat, toggled by the view chip.
