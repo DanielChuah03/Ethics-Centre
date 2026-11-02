@@ -321,23 +321,36 @@ function humanize(b) {
   // Tool runs — translate by command class first, then tool kind.
   if (b.event === "PostToolUse" || b.action === "tool.run") {
     const cmd = b.command || "";
+    const lc = cmd.toLowerCase();
+    const firstLine = cmd.split(/\r?\n/)[0].trim();
+    // 1) Specific command shapes first — more useful than the coarse class.
+    if (/^\s*ssh\b/.test(lc)) {
+      const host = (cmd.match(/@([\w.-]+)/) || [])[1];
+      const inner = (cmd.match(/"([^"]+)"\s*$/) || [])[1];
+      return "Ran a command on a remote server" + (host ? " (" + host + ")" : "") + (inner ? ": " + inner.slice(0, 60) : "") + okTail;
+    }
+    if (/<<\s*['"]?eof/i.test(lc) || /=@['"]/.test(cmd)) return "Ran an inline script" + okTail;
+    if (/^\s*(node|python3?|ts-node|deno)\b/.test(lc)) return "Ran a " + (firstLine.split(/\s+/)[0] || "script") + " script" + okTail;
+    if (/^\s*(select-string|grep|rg|findstr)\b/.test(lc)) return "Searched file contents" + okTail;
+    if (/^\s*(get-content|cat|type)\b/.test(lc)) return "Read a file via shell" + okTail;
+    if (/^\s*systemctl\b/.test(lc) || /\bsystemctl\b/.test(lc)) return "Managed a system service" + okTail;
+    // 2) Fall back to the coarse command class.
     switch (b.cmd_class) {
-      case "git":             return "Ran a git command" + (/(commit)/i.test(cmd) ? " (commit)" : "") + okTail;
+      case "git":             { const sub = (cmd.match(/git\s+(\w+)/i) || [])[1]; return "Ran git " + (sub || "command") + okTail; }
       case "package-install": return "Installed a dependency" + okTail;
-      case "network":         { const u = (cmd.match(/https?:\/\/[^\s"'`)]+/i) || [])[0]; return "Made a network request" + (u ? " to " + u.replace(/^https?:\/\//, "").slice(0, 40) : "") + okTail; }
-      case "test":            return "Ran tests" + (b.outcome === "error" ? " — some failed" : (b.outcome === "success" ? " — passed" : "")); 
+      case "network":         { const u = (cmd.match(/https?:\/\/[^\s"']+/i) || [])[0]; return "Made a network request" + (u ? " to " + u.replace(/^https?:\/\//, "").slice(0, 40) : "") + okTail; }
+      case "test":            return "Ran tests" + (b.outcome === "error" ? " — some failed" : (b.outcome === "success" ? " — passed" : ""));
       case "build":           return "Built the project" + okTail;
       case "delete":          return "Ran a delete command" + okTail;
     }
-    // Tool-specific fallbacks (file reads, searches, etc.).
+    // 3) Tool-specific fallbacks.
     const tool = (b.tool || "").toLowerCase();
     if (/read_file|read_code/.test(tool))      return "Read file " + fileName(b.path);
     if (/list_directory/.test(tool))           return "Listed a directory" + (b.path ? " (" + fileName(b.path) + ")" : "");
     if (/grep_search|file_search/.test(tool))  return "Searched the codebase";
     if (/str_replace|fs_write|fs_append/.test(tool)) return "Edited file " + fileName(b.path) + okTail;
     if (/delete_file/.test(tool))              return "Deleted file " + fileName(b.path);
-    if (/execute_pwsh|control_pwsh/.test(tool)) return "Ran a command" + okTail;
-    if (cmd) return "Ran a command" + okTail;
+    if (firstLine) return "Ran: " + firstLine.slice(0, 50) + (firstLine.length > 50 ? " …" : "") + okTail;
     return b.tool ? ("Used tool: " + b.tool) : "Performed an action";
   }
 
@@ -692,12 +705,26 @@ const PAGE = `<!doctype html>
   tbody tr:hover td{background:rgba(74,222,128,.05)}
   th.c-time,td.c-time{width:160px} th.c-dev,td.c-dev{width:130px} th.c-proj,td.c-proj{width:150px}
   td.detail .evsum{display:block;color:var(--txt)}
+  tr.can-expand{cursor:pointer} tr.can-expand:hover td{background:var(--surface2)}
+  .caret{display:inline-block;width:12px;color:var(--faint);transition:transform .15s;margin-right:2px}
+  tr.open .caret{transform:rotate(90deg);color:var(--accent)}
+  tr.xpanel.hidden{display:none}
+  tr.xpanel>td{background:var(--bg2);border-top:0;padding:0 14px 12px 34px}
+  .xwrap{display:flex;flex-direction:column;gap:6px;padding:10px 0}
+  .xrow{display:flex;gap:10px;align-items:flex-start;font-size:12px}
+  .xk{flex:0 0 76px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;font-size:10px;padding-top:2px}
+  .xv{flex:1 1 0;min-width:0;color:var(--txt);overflow-wrap:anywhere}
+  .xcmd{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;color:var(--txt)}
   td.detail .evraw{display:block;margin-top:2px;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .analytics{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:4px 0 12px;font-size:12px}
-  .agroup{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-  .astat{padding:3px 9px;border:1px solid var(--line);border-radius:12px;color:var(--muted)} .astat b{color:var(--txt)}
-  .astat.good b{color:#6ee7a8} .astat.warn b{color:#f4c15d} .astat.bad b{color:#ff8a8a}
-  .agroup.cmdmix{gap:6px} .amuted{color:var(--dim)}
+  .analytics{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}
+  .acard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 13px}
+  .ahd{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  .abody{display:flex;gap:16px;align-items:flex-end}
+  .astat .av{font-size:19px;font-weight:700;line-height:1;color:var(--txt)}
+  .astat .al{font-size:10px;color:var(--dim);margin-top:3px}
+  .astat.good .av{color:#4ade80} .astat.warn .av{color:#f4c15d} .astat.bad .av{color:#ff8a8a} .astat.mut .av{color:var(--faint)}
+  .cchips{display:flex;flex-wrap:wrap;gap:6px;max-width:420px}
+  .cchip{display:inline-flex;gap:6px;align-items:center;font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:10px;color:var(--dim)} .cchip b{color:var(--txt)}
   th.c-act,td.c-act{width:86px;font-size:12px;color:var(--muted)}
   th.c-type,td.c-type{width:104px} .ctype{font-size:11px;padding:1px 6px;border:1px solid var(--line);border-radius:10px;color:var(--muted)}
   th.c-out,td.c-out{width:76px} .outcome{font-size:11px;padding:1px 6px;border-radius:10px} .outcome.success{color:#6ee7a8;background:rgba(110,231,168,.12)} .outcome.error{color:#ff8a8a;background:rgba(255,138,138,.14)}
@@ -1131,22 +1158,37 @@ function renderActivity(){
       if (e.cmd_class) cmd[e.cmd_class]=(cmd[e.cmd_class]||0)+1;
       if (e.outcome==='success') ok++; else if (e.outcome==='error') err++;
     }
-    const pill=(label,val,cls)=> '<span class="astat '+(cls||'')+'"><b>'+val+'</b> '+label+'</span>';
-    const topCmd = Object.entries(cmd).sort((a,b)=>b[1]-a[1]).slice(0,6)
-      .map(([k,v])=>'<span class="ctype">'+esc(k)+' <b>'+v+'</b></span>').join('');
     const errRate = (ok+err)>0 ? Math.round(err*100/(ok+err)) : 0;
-    const html = '<div class="agroup">'+
-      pill('blocked', blocks, blocks>0?'bad':'')+pill('scope flags', flags, flags>0?'warn':'')+
-      pill('ok', ok, 'good')+pill('errors', err, err>0?'bad':'')+pill('err rate', errRate+'%', errRate>0?'warn':'')+
-      '</div>'+(topCmd?'<div class="agroup cmdmix"><span class="amuted">commands:</span>'+topCmd+'</div>':'');
+    const stat=(val,label,cls)=> '<div class="astat '+(cls||'')+'"><div class="av">'+val+'</div><div class="al">'+label+'</div></div>';
+    const topCmd = Object.entries(cmd).sort((a,b)=>b[1]-a[1]).slice(0,6)
+      .map(([k,v])=>'<span class="cchip">'+esc(k)+'<b>'+v+'</b></span>').join('');
+    const card=(title,inner)=> '<div class="acard"><div class="ahd">'+title+'</div><div class="abody">'+inner+'</div></div>';
+    const html =
+      card('Guardrails', stat(blocks,'blocked',blocks>0?'bad':'mut')+stat(flags,'scope flags',flags>0?'warn':'mut')) +
+      card('Outcomes', stat(ok,'ok','good')+stat(err,'errors',err>0?'bad':'mut')+stat(errRate+'%','err rate',errRate>0?'warn':'mut')) +
+      (topCmd ? card('Commands', '<div class="cchips">'+topCmd+'</div>') : '');
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
-  document.getElementById('actBody').innerHTML = rows.slice(0,2000).map(e=>{
+  document.getElementById('actBody').innerHTML = rows.slice(0,2000).map((e,i)=>{
     const d = esc(e.detail||'');
     const sum = esc(e.summary||e.detail||'');
-    const hasRaw = e.detail && e.detail !== e.summary;
     const proj = e.project && e.project !== "_" ? e.project : "—";
-    return '<tr><td class="c-time mono">'+when(e.ts)+'</td>'+
+    // Expanded detail panel: full command / path / reply, plus the facts.
+    const kv = [];
+    if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(e.command)+'</pre>']);
+    if (e.path) kv.push(['Path', '<span class="mono">'+esc(e.path)+'</span>']);
+    if (e.prompt && e.event==='UserPromptSubmit') kv.push(['Prompt','<pre class="xcmd">'+esc(e.prompt)+'</pre>']);
+    if (e.reason) kv.push(['Reason', esc(e.reason)]);
+    if (e.tool) kv.push(['Tool', '<span class="mono">'+esc(e.tool)+'</span>']);
+    if (e.outcome) kv.push(['Outcome','<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>']);
+    if (e.cmd_class) kv.push(['Type','<span class="ctype">'+esc(e.cmd_class)+'</span>']);
+    kv.push(['Time', esc(when(e.ts))]);
+    const expandable = kv.length > 1 || e.command || e.prompt;
+    const panel = expandable ? ('<tr class="xpanel hidden" data-xi="'+i+'"><td colspan="9"><div class="xwrap">'+
+      kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
+      '</div></td></tr>') : '';
+    return '<tr class="evrow'+(expandable?' can-expand':'')+'" data-i="'+i+'">'+
+      '<td class="c-time mono">'+(expandable?'<span class="caret">▸</span>':'')+when(e.ts)+'</td>'+
       '<td class="c-dev mono">'+esc(e.device)+'</td>'+
       '<td class="c-proj mono" title="'+esc(proj)+'">'+esc(proj)+'</td>'+
       '<td class="c-cat"><span class="cat '+e.category+'">'+CAT_LABEL[e.category]+'</span></td>'+
@@ -1154,7 +1196,7 @@ function renderActivity(){
       '<td class="c-type">'+(e.cmd_class?'<span class="ctype">'+esc(e.cmd_class)+'</span>':'')+'</td>'+
       '<td class="c-out">'+(e.outcome?'<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>':'')+'</td>'+
       '<td class="c-tool mono">'+esc(e.tool||'')+'</td>'+
-      '<td class="detail" title="'+d+'"><span class="evsum">'+sum+'</span>'+(hasRaw?'<span class="evraw mono">'+d+'</span>':'')+'</td></tr>';
+      '<td class="detail" title="'+d+'"><span class="evsum">'+sum+'</span></td></tr>'+panel;
   }).join('');
 }
 
@@ -1349,6 +1391,16 @@ document.getElementById('enrollBody').addEventListener('click', ev=>{
 // Project dropdown on the Event Log page.
 document.getElementById('actProj').addEventListener('change', ev=>{
   projFilter = ev.target.value; renderActivity();
+});
+// Expand/collapse an event row to reveal its full detail panel.
+document.getElementById('actBody').addEventListener('click', ev=>{
+  const tr = ev.target.closest('tr.can-expand'); if(!tr) return;
+  const i = tr.getAttribute('data-i');
+  const panel = document.querySelector('tr.xpanel[data-xi="'+i+'"]');
+  if(!panel) return;
+  const open = !panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', open);
+  tr.classList.toggle('open', !open);
 });
 // Back to the all-orgs overview.
 document.getElementById('fleetTitle').addEventListener('click', ev=>{
