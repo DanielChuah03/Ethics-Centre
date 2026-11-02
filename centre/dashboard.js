@@ -285,6 +285,96 @@ function isBlock(b) {
 function isScopeFlag(b) {
   return b.event === "guardrail" && b.decision === "allow";
 }
+// --- Display redaction (demo-safe, REGEX-FREE) -----------------------------
+// Masks IPs, user@host and key-file paths in what is SHOWN ON SCREEN only.
+// The stored event keeps the full raw value; this is presentation-only so
+// sensitive values are not flashed on a projector during a demo. Implemented
+// with plain string scanning (no regex) to avoid escaping hazards.
+function redact(s) {
+  if (!s) return s;
+  var str = String(s);
+  var i, out, j, ch, start;
+  // 1) IPv4 addresses -> [ip]  (scan for runs of digit groups a.b.c.d)
+  out = '';
+  i = 0;
+  while (i < str.length) {
+    ch = str[i];
+    if (ch >= '0' && ch <= '9') {
+      // try to match a dotted-quad starting here
+      j = i; var groups = 0; var digits = 0; var ok = true;
+      var k = i;
+      for (groups = 0; groups < 4; groups++) {
+        digits = 0;
+        while (k < str.length && str[k] >= '0' && str[k] <= '9' && digits < 3) { k++; digits++; }
+        if (digits === 0) { ok = false; break; }
+        if (groups < 3) { if (str[k] === '.') { k++; } else { ok = false; break; } }
+      }
+      // ensure not followed by another digit/dot (avoid partial)
+      if (ok && !(str[k] >= '0' && str[k] <= '9')) {
+        out += '[ip]';
+        i = k;
+        continue;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  str = out;
+  // 2) key/cert file paths -> [key]  (token ending in .pem/.key/.ppk/.pfx/.p12)
+  var exts = ['.pem', '.key', '.ppk', '.pfx', '.p12'];
+  var lower = str.toLowerCase();
+  for (var e = 0; e < exts.length; e++) {
+    var ext = exts[e];
+    var from = 0;
+    while (true) {
+      var at = lower.indexOf(ext, from);
+      if (at < 0) break;
+      // find start of the token (back up to whitespace or quote)
+      start = at;
+      while (start > 0) {
+        var c = str[start - 1];
+        if (c === ' ' || c === '"' || c === "'" || c === '=' || c === '(') break;
+        start--;
+      }
+      var end = at + ext.length;
+      str = str.slice(0, start) + '[key]' + str.slice(end);
+      lower = str.toLowerCase();
+      from = start + 5;
+    }
+  }
+  // 3) user@host -> [user]@[host]  (scan around any '@')
+  out = '';
+  i = 0;
+  while (i < str.length) {
+    if (str[i] === '@') {
+      // back up over the user token
+      var us = out.length;
+      while (us > 0) {
+        var uc = out[us - 1];
+        var isWord = (uc >= 'a' && uc <= 'z') || (uc >= 'A' && uc <= 'Z') || (uc >= '0' && uc <= '9') || uc === '.' || uc === '-' || uc === '_';
+        if (!isWord) break;
+        us--;
+      }
+      // consume the host token forward
+      var he = i + 1;
+      while (he < str.length) {
+        var hc = str[he];
+        var isHost = (hc >= 'a' && hc <= 'z') || (hc >= 'A' && hc <= 'Z') || (hc >= '0' && hc <= '9') || hc === '.' || hc === '-' || hc === '_';
+        if (!isHost) break;
+        he++;
+      }
+      if (us < out.length && he > i + 1) {
+        out = out.slice(0, us) + '[user]@[host]';
+        i = he;
+        continue;
+      }
+    }
+    out += str[i];
+    i++;
+  }
+  return out;
+}
+
 // --- Plain-English event summaries (readability layer) ---------------------
 // Turns a raw event into a human sentence a non-engineer can scan, using the
 // structured fields from improvement #1 (action, cmd_class, tool, path,
@@ -1170,15 +1260,15 @@ function renderActivity(){
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
   document.getElementById('actBody').innerHTML = rows.slice(0,2000).map((e,i)=>{
-    const d = esc(e.detail||'');
-    const sum = esc(e.summary||e.detail||'');
+    const d = esc(redact(e.detail||''));
+    const sum = esc(redact(e.summary||e.detail||''));
     const proj = e.project && e.project !== "_" ? e.project : "—";
     // Expanded detail panel: full command / path / reply, plus the facts.
     const kv = [];
-    if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(e.command)+'</pre>']);
-    if (e.path) kv.push(['Path', '<span class="mono">'+esc(e.path)+'</span>']);
+    if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(redact(e.command))+'</pre>']);
+    if (e.path) kv.push(['Path', '<span class="mono">'+esc(redact(e.path))+'</span>']);
     if (e.prompt && e.event==='UserPromptSubmit') kv.push(['Prompt','<pre class="xcmd">'+esc(e.prompt)+'</pre>']);
-    if (e.reason) kv.push(['Reason', esc(e.reason)]);
+    if (e.reason) kv.push(['Reason', esc(redact(e.reason))]);
     if (e.tool) kv.push(['Tool', '<span class="mono">'+esc(e.tool)+'</span>']);
     if (e.outcome) kv.push(['Outcome','<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>']);
     if (e.cmd_class) kv.push(['Type','<span class="ctype">'+esc(e.cmd_class)+'</span>']);
