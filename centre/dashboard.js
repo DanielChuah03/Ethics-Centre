@@ -704,6 +704,14 @@ const PAGE = `<!doctype html>
   .chip.src:hover{color:var(--txt);border-color:transparent}
   .chip.src.active{color:var(--cyan);background:var(--cyan-soft);border-color:rgba(95,181,154,.4)}
   .chipsep{display:inline-block;width:1px;align-self:stretch;margin:0 4px;background:var(--line)}
+  /* Compact segmented-control filters */
+  #actFilters{display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--surface2);border:1px solid var(--line)}
+  .segbtn{padding:5px 11px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;color:var(--dim);transition:.14s;user-select:none}
+  .segbtn:hover{color:var(--txt)}
+  .segbtn.active{color:var(--accent);background:var(--accent-soft)}
+  .segbtn.cat{min-width:20px;text-align:center;font-weight:700}
+  .segbtn.cat.G.active{color:#ff8a8a} .segbtn.cat.R.active{color:#f4c15d} .segbtn.cat.O.active{color:#4ade80} .segbtn.cat.W.active{color:#c48bff}
 
   .panel{background:var(--surface);
     border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
@@ -871,7 +879,7 @@ const PAGE = `<!doctype html>
    <div class="logo">G</div>
    <div>
      <h1>Ethics Centre</h1>
-     <div class="sub"><span class="pill-g">Govern</span><span class="dotsep">·</span><span class="pill-g">Restrict</span><span class="dotsep">·</span><span class="pill-g">Observe</span><span class="dotsep">·</span><span class="pill-g">Wall off</span><span class="dotsep">·</span><span class="live"><span class="livedot"></span>live</span></div>
+     <div class="sub"><span class="live"><span class="livedot"></span>live</span></div>
    </div>
   </div>
   <div class="topbar">
@@ -1275,17 +1283,18 @@ function renderActivity(){
   // Source toggle first — App (deployed runtime traffic) vs Dev (build-time) vs All.
   // Rendered as chips with a distinct data attribute so one delegated handler
   // can tell them apart from the category chips.
-  const srcs = [['ALL','All sources'],['dev','Dev activity'],['app','App traffic']];
-  const srcHtml = '<div class="srcgroup">' + srcs.map(([f,l])=>
-    '<div class="chip src '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div>';
-  const cats = [['ALL','All'],['G','G · Data'],['R','R · Scope'],['O','O · Observe'],['W','W · Wall']];
-  const catHtml = cats.map(([f,l])=>
-    '<div class="chip '+(actFilter===f?'active':'')+'" data-f="'+f+'">'+l+'</div>').join('');
   if (window.groupMode === undefined) window.groupMode = true;
-  const viewHtml = '<span class="chipsep"></span>'+
-    '<div class="chip view '+(window.groupMode?'active':'')+'" data-view="group">Grouped</div>'+
-    '<div class="chip view '+(!window.groupMode?'active':'')+'" data-view="flat">Flat</div>';
-  document.getElementById('actFilters').innerHTML = srcHtml + '<span class="chipsep"></span>' + catHtml + viewHtml;
+  // Compact filter bar: source segmented control · pillar letter-chips · view toggle.
+  const srcs = [['ALL','All'],['dev','Dev'],['app','App']];
+  const srcHtml = '<div class="seg">' + srcs.map(([f,l])=>
+    '<div class="segbtn '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div>';
+  const cats = [['ALL','All'],['G','G'],['R','R'],['O','O'],['W','W']];
+  const catHtml = '<div class="seg">' + cats.map(([f,l])=>
+    '<div class="segbtn '+(f!=='ALL'?'cat '+f:'')+' '+(actFilter===f?'active':'')+'" data-f="'+f+'" title="'+({ALL:'All pillars',G:'Govern',R:'Restrict',O:'Observe',W:'Wall off'}[f])+'">'+l+'</div>').join('') + '</div>';
+  const viewHtml = '<div class="seg">'+
+    '<div class="segbtn '+(window.groupMode?'active':'')+'" data-view="group">Grouped</div>'+
+    '<div class="segbtn '+(!window.groupMode?'active':'')+'" data-view="flat">Flat</div></div>';
+  document.getElementById('actFilters').innerHTML = srcHtml + catHtml + viewHtml;
 
   let rows = eventsForOrg();
 
@@ -1604,10 +1613,10 @@ document.getElementById('tabs').addEventListener('click', ev=>{
   showTab(t.dataset.tab);
 });
 document.getElementById('actFilters').addEventListener('click', ev=>{
-  const c = ev.target.closest('.chip'); if(!c) return;
+  const c = ev.target.closest('.segbtn'); if(!c) return;
   if (c.dataset.view !== undefined) { window.groupMode = (c.dataset.view === 'group'); renderActivity(); return; }
   if (c.dataset.src !== undefined) { srcFilter = c.dataset.src; renderActivity(); return; }
-  actFilter = c.dataset.f; renderActivity();
+  if (c.dataset.f !== undefined) { actFilter = c.dataset.f; renderActivity(); }
 });
 document.getElementById('orgFilter').addEventListener('change', ev=>{
   orgFilter = ev.target.value; projFilter = "ALL"; renderAll();
