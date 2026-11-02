@@ -815,6 +815,13 @@ const PAGE = `<!doctype html>
   tr.turnrow td{border-top:1px solid var(--line);padding-top:10px;padding-bottom:10px}
   .tcaret{display:inline-block;width:12px;color:var(--accent);margin-right:4px}
   td.turnhead{white-space:normal}
+  /* Force a plain sans-serif with ligatures OFF on the prompt header — the mono
+     web font was mis-rendering lowercase s / S glyphs in some browsers. */
+  td.turnhead, td.turnhead .tprompt{
+    font-family:Arial,Helvetica,'Segoe UI',sans-serif !important;
+    font-variant-ligatures:none !important;
+    font-feature-settings:"liga" 0,"calt" 0 !important;
+  }
   .tprompt{color:var(--txt);font-weight:600;margin-right:10px}
   .tnoprompt{color:var(--faint);font-weight:400;font-style:italic}
   .tchips{display:inline-flex;flex-wrap:wrap;gap:5px;vertical-align:middle}
