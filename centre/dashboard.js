@@ -694,7 +694,10 @@ const PAGE = `<!doctype html>
 
   .actbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap}
   .filters{display:flex;gap:8px;flex-wrap:wrap}
-  .projpick{font-size:12px;color:var(--dim);display:inline-flex;align-items:center}
+  .projpick{font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--faint);display:inline-flex;align-items:center;gap:8px}
+  .projpick select{font-family:inherit;font-size:12px;font-weight:600;color:var(--txt);background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;text-transform:none;letter-spacing:0;transition:.14s}
+  .projpick select:hover{border-color:rgba(74,222,128,.4)}
+  .projpick select:focus{outline:none;border-color:var(--accent)}
   .chip{padding:6px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer;
     border:1px solid var(--line);color:var(--dim);background:var(--surface);transition:.16s}
   .chip:hover{color:var(--txt);border-color:rgba(74,222,128,.3)}
@@ -707,13 +710,18 @@ const PAGE = `<!doctype html>
   .chip.src.active{color:var(--cyan);background:var(--cyan-soft);border-color:rgba(95,181,154,.4)}
   .chipsep{display:inline-block;width:1px;align-self:stretch;margin:0 4px;background:var(--line)}
   /* Compact segmented-control filters */
-  #actFilters{display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--surface2);border:1px solid var(--line)}
-  .segbtn{padding:5px 11px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;color:var(--dim);transition:.14s;user-select:none}
-  .segbtn:hover{color:var(--txt)}
-  .segbtn.active{color:var(--accent);background:var(--accent-soft)}
-  .segbtn.cat{min-width:20px;text-align:center;font-weight:700}
-  .segbtn.cat.G.active{color:#ff8a8a} .segbtn.cat.R.active{color:#f4c15d} .segbtn.cat.O.active{color:#4ade80} .segbtn.cat.W.active{color:#c48bff}
+  #actFilters{display:inline-flex;gap:22px;align-items:center;flex-wrap:wrap}
+  /* Understated grouped toggles with a small label — one cohesive, clean control */
+  .fgroup{display:inline-flex;align-items:center;gap:10px}
+  .fglabel{font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--faint)}
+  .seg{display:inline-flex;gap:3px}
+  .segbtn{padding:5px 12px;border-radius:999px;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--dim);transition:.14s;user-select:none;border:1px solid transparent}
+  .segbtn:hover{color:var(--txt);background:var(--surface2)}
+  .segbtn.active{color:#0a0f0a;background:var(--accent);border-color:var(--accent)}
+  .segbtn.cat{min-width:26px;text-align:center}
+  .segbtn.cat.active{color:#0a0f0a}
+  .segbtn.cat.G.active{background:#ff8a8a;border-color:#ff8a8a} .segbtn.cat.R.active{background:#f4c15d;border-color:#f4c15d}
+  .segbtn.cat.O.active{background:#4ade80;border-color:#4ade80} .segbtn.cat.W.active{background:#c48bff;border-color:#c48bff}
 
   .panel{background:var(--surface);
     border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
@@ -1296,11 +1304,11 @@ function renderActivity(){
   if (window.groupMode === undefined) window.groupMode = true;
   // Compact filter bar: source segmented control · pillar letter-chips · view toggle.
   const srcs = [['ALL','All'],['dev','Dev'],['app','App']];
-  const srcHtml = '<div class="seg">' + srcs.map(([f,l])=>
-    '<div class="segbtn '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div>';
+  const srcHtml = '<div class="fgroup"><span class="fglabel">Source</span><div class="seg">' + srcs.map(([f,l])=>
+    '<div class="segbtn '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div></div>';
   const cats = [['ALL','All'],['G','G'],['R','R'],['O','O'],['W','W']];
-  const catHtml = '<div class="seg">' + cats.map(([f,l])=>
-    '<div class="segbtn '+(f!=='ALL'?'cat '+f:'')+' '+(actFilter===f?'active':'')+'" data-f="'+f+'" title="'+({ALL:'All pillars',G:'Govern',R:'Restrict',O:'Observe',W:'Wall off'}[f])+'">'+l+'</div>').join('') + '</div>';
+  const catHtml = '<div class="fgroup"><span class="fglabel">Pillar</span><div class="seg">' + cats.map(([f,l])=>
+    '<div class="segbtn '+(f!=='ALL'?'cat '+f:'')+' '+(actFilter===f?'active':'')+'" data-f="'+f+'" title="'+({ALL:'All pillars',G:'Govern',R:'Restrict',O:'Observe',W:'Wall off'}[f])+'">'+l+'</div>').join('') + '</div></div>';
   document.getElementById('actFilters').innerHTML = srcHtml + catHtml;
 
   let rows = eventsForOrg();
