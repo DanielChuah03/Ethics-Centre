@@ -795,6 +795,20 @@ const PAGE = `<!doctype html>
   tbody tr:hover td{background:rgba(74,222,128,.05)}
   th.c-time,td.c-time{width:160px} th.c-dev,td.c-dev{width:130px} th.c-proj,td.c-proj{width:150px}
   td.detail .evsum{display:block;color:var(--txt)}
+  /* --- Turn grouping --- */
+  tr.turnrow{cursor:pointer;background:var(--surface2)} tr.turnrow:hover{background:var(--surface)}
+  tr.turnrow td{border-top:1px solid var(--line);padding-top:10px;padding-bottom:10px}
+  .tcaret{display:inline-block;width:12px;color:var(--accent);margin-right:4px}
+  td.turnhead{white-space:normal}
+  .tprompt{color:var(--txt);font-weight:600;margin-right:10px}
+  .tnoprompt{color:var(--faint);font-weight:400;font-style:italic}
+  .tchips{display:inline-flex;flex-wrap:wrap;gap:5px;vertical-align:middle}
+  .tchip{font-size:10px;padding:1px 7px;border:1px solid var(--line);border-radius:10px;color:var(--dim)}
+  .tchip.bad{color:#ff8a8a;border-color:rgba(255,138,138,.4)} .tchip.warn{color:#f4c15d;border-color:rgba(244,193,93,.4)}
+  .tcount{font-size:10px;color:var(--faint);margin-left:2px}
+  tbody.turnbody.collapsed{display:none}
+  tr.childrow td.c-time{padding-left:22px;color:var(--dim)}
+  tr.childrow td{background:var(--bg)}
   tr.can-expand{cursor:pointer} tr.can-expand:hover td{background:var(--surface2)}
   .caret{display:inline-block;width:12px;color:var(--faint);transition:transform .15s;margin-right:2px}
   tr.open .caret{transform:rotate(90deg);color:var(--accent)}
@@ -1086,6 +1100,7 @@ function redact(s){
   return out;
 }
 function when(ts){ return ts ? new Date(ts).toLocaleString() : "—"; }
+function clip(s,n){ s=String(s||'').replace(/\s+/g,' ').trim(); return s.length>n ? s.slice(0,n)+'…' : s; }
 function shortWhen(ts){
   if(!ts) return "—";
   const d=new Date(ts);
@@ -1266,7 +1281,11 @@ function renderActivity(){
   const cats = [['ALL','All'],['G','G · Data'],['R','R · Scope'],['O','O · Observe'],['W','W · Wall']];
   const catHtml = cats.map(([f,l])=>
     '<div class="chip '+(actFilter===f?'active':'')+'" data-f="'+f+'">'+l+'</div>').join('');
-  document.getElementById('actFilters').innerHTML = srcHtml + '<span class="chipsep"></span>' + catHtml;
+  if (window.groupMode === undefined) window.groupMode = true;
+  const viewHtml = '<span class="chipsep"></span>'+
+    '<div class="chip view '+(window.groupMode?'active':'')+'" data-view="group">Grouped</div>'+
+    '<div class="chip view '+(!window.groupMode?'active':'')+'" data-view="flat">Flat</div>';
+  document.getElementById('actFilters').innerHTML = srcHtml + '<span class="chipsep"></span>' + catHtml + viewHtml;
 
   let rows = eventsForOrg();
 
@@ -1309,20 +1328,23 @@ function renderActivity(){
       (topCmd ? card('Commands', '<div class="cchips">'+topCmd+'</div>') : '');
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
-  document.getElementById('actBody').innerHTML = rows.slice(0,2000).map((e,i)=>{
+  // Render mode: grouped-by-turn (default) or flat, toggled by the view chip.
+  if (window.groupMode === undefined) window.groupMode = true;
+
+  if (window.groupMode) {
+    document.getElementById('actBody').innerHTML = renderGrouped(rows);
+  } else {
+    document.getElementById('actBody').innerHTML = renderFlat(rows);
+  }
+}
+
+// Build the flat per-event rows (the original view).
+function renderFlat(rows){
+  return rows.slice(0,2000).map((e,i)=>{
     const d = esc(redact(e.detail||''));
     const sum = esc(redact(e.summary||e.detail||''));
     const proj = e.project && e.project !== "_" ? e.project : "—";
-    // Expanded detail panel: full command / path / reply, plus the facts.
-    const kv = [];
-    if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(redact(e.command))+'</pre>']);
-    if (e.path) kv.push(['Path', '<span class="mono">'+esc(redact(e.path))+'</span>']);
-    if (e.prompt && e.event==='UserPromptSubmit') kv.push(['Prompt','<pre class="xcmd">'+esc(e.prompt)+'</pre>']);
-    if (e.reason) kv.push(['Reason', esc(redact(e.reason))]);
-    if (e.tool) kv.push(['Tool', '<span class="mono">'+esc(e.tool)+'</span>']);
-    if (e.outcome) kv.push(['Outcome','<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>']);
-    if (e.cmd_class) kv.push(['Type','<span class="ctype">'+esc(e.cmd_class)+'</span>']);
-    kv.push(['Time', esc(when(e.ts))]);
+    const kv = buildKv(e);
     const expandable = kv.length > 1 || e.command || e.prompt;
     const panel = expandable ? ('<tr class="xpanel hidden" data-xi="'+i+'"><td colspan="9"><div class="xwrap">'+
       kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
@@ -1337,6 +1359,90 @@ function renderActivity(){
       '<td class="c-out">'+(e.outcome?'<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>':'')+'</td>'+
       '<td class="c-tool mono">'+esc(e.tool||'')+'</td>'+
       '<td class="detail" title="'+d+'"><span class="evsum">'+sum+'</span></td></tr>'+panel;
+  }).join('');
+}
+
+// Shared: the key/value pairs for an event's expand panel.
+function buildKv(e){
+  const kv = [];
+  if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(redact(e.command))+'</pre>']);
+  if (e.path) kv.push(['Path', '<span class="mono">'+esc(redact(e.path))+'</span>']);
+  if (e.prompt && e.event==='UserPromptSubmit') kv.push(['Prompt','<pre class="xcmd">'+esc(e.prompt)+'</pre>']);
+  if (e.reason) kv.push(['Reason', esc(redact(e.reason))]);
+  if (e.tool) kv.push(['Tool', '<span class="mono">'+esc(e.tool)+'</span>']);
+  if (e.outcome) kv.push(['Outcome','<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>']);
+  if (e.cmd_class) kv.push(['Type','<span class="ctype">'+esc(e.cmd_class)+'</span>']);
+  kv.push(['Time', esc(when(e.ts))]);
+  return kv;
+}
+
+// Group events into turns: a new turn starts at each UserPromptSubmit; all
+// following events (tools, files, guard decisions) belong to it until the next
+// prompt. Events before the first prompt form an "untitled" lead group.
+function renderGrouped(rows){
+  // chronological so turns read top-to-bottom in order
+  const sorted = rows.slice().sort((a,b)=> new Date(a.ts) - new Date(b.ts));
+  const groups = [];
+  let cur = null;
+  for (const e of sorted){
+    if (e.event === 'UserPromptSubmit' || !cur){
+      cur = { prompt: (e.event==='UserPromptSubmit' ? (e.prompt||e.summary||'') : null),
+              ts: e.ts, device: e.device, project: e.project, events: [] };
+      groups.push(cur);
+      if (e.event === 'UserPromptSubmit') continue; // the prompt heads the group, not a child row
+    }
+    cur.events.push(e);
+  }
+  // newest turn on top
+  groups.reverse();
+
+  return groups.slice(0,500).map((g,gi)=>{
+    // Summaries for the turn header: counts + any guard flags.
+    const n = g.events.length;
+    const edits = g.events.filter(e=>/^file\.(save|create)$/.test(e.action||'')||/str_replace|fs_write|fs_append/.test(e.tool||'')).length;
+    const cmds = g.events.filter(e=>/execute_pwsh|control_pwsh/.test(e.tool||'')).length;
+    const blocks = g.events.filter(e=>e.decision==='block').length;
+    const flags = g.events.filter(e=>e.decision==='allow'&&e.category==='R').length;
+    const errs = g.events.filter(e=>e.outcome==='error').length;
+    const proj = g.project && g.project!=="_" ? g.project : "—";
+
+    const chips = [];
+    if (edits) chips.push('<span class="tchip">'+edits+' edit'+(edits>1?'s':'')+'</span>');
+    if (cmds) chips.push('<span class="tchip">'+cmds+' cmd'+(cmds>1?'s':'')+'</span>');
+    if (blocks) chips.push('<span class="tchip bad">'+blocks+' blocked</span>');
+    if (flags) chips.push('<span class="tchip warn">'+flags+' scope</span>');
+    if (errs) chips.push('<span class="tchip bad">'+errs+' error'+(errs>1?'s':'')+'</span>');
+    chips.push('<span class="tcount">'+n+' action'+(n===1?'':'s')+'</span>');
+
+    const title = g.prompt ? esc(redact(clip(g.prompt,140))) : '<span class="tnoprompt">(activity before first prompt)</span>';
+
+    // child rows: one line per action, the plain-English summary + category dot.
+    const children = g.events.map((e,ci)=>{
+      const kv = buildKv(e);
+      const sum = esc(redact(e.summary||e.detail||e.action||''));
+      const catDot = '<span class="cat '+e.category+'" title="'+CAT_LABEL[e.category]+'">'+CAT_LABEL[e.category]+'</span>';
+      const out = e.outcome ? '<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>' : '';
+      const panel = '<tr class="xpanel hidden" data-xi="g'+gi+'c'+ci+'"><td colspan="9"><div class="xwrap">'+
+        kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
+        '</div></td></tr>';
+      return '<tr class="evrow childrow can-expand" data-i="g'+gi+'c'+ci+'">'+
+        '<td class="c-time mono"><span class="caret">▸</span>'+when(e.ts)+'</td>'+
+        '<td class="c-dev"></td><td class="c-proj"></td>'+
+        '<td class="c-cat">'+catDot+'</td>'+
+        '<td class="c-act mono">'+esc(e.action||'')+'</td>'+
+        '<td class="c-type">'+(e.cmd_class?'<span class="ctype">'+esc(e.cmd_class)+'</span>':'')+'</td>'+
+        '<td class="c-out">'+out+'</td>'+
+        '<td class="c-tool mono">'+esc(e.tool||'')+'</td>'+
+        '<td class="detail"><span class="evsum">'+sum+'</span></td></tr>'+panel;
+    }).join('');
+
+    const header = '<tr class="turnrow" data-turn="'+gi+'">'+
+      '<td class="c-time mono"><span class="tcaret">▾</span>'+when(g.ts)+'</td>'+
+      '<td colspan="7" class="turnhead"><span class="tprompt">'+title+'</span>'+
+        '<span class="tchips">'+chips.join('')+'</span></td>'+
+      '<td class="c-proj mono" title="'+esc(proj)+'">'+esc(proj)+'</td></tr>';
+
+    return header + '<tbody class="turnbody" data-turnbody="'+gi+'">'+children+'</tbody>';
   }).join('');
 }
 
@@ -1499,6 +1605,7 @@ document.getElementById('tabs').addEventListener('click', ev=>{
 });
 document.getElementById('actFilters').addEventListener('click', ev=>{
   const c = ev.target.closest('.chip'); if(!c) return;
+  if (c.dataset.view !== undefined) { window.groupMode = (c.dataset.view === 'group'); renderActivity(); return; }
   if (c.dataset.src !== undefined) { srcFilter = c.dataset.src; renderActivity(); return; }
   actFilter = c.dataset.f; renderActivity();
 });
@@ -1542,6 +1649,18 @@ document.getElementById('actProj').addEventListener('change', ev=>{
 });
 // Expand/collapse an event row to reveal its full detail panel.
 document.getElementById('actBody').addEventListener('click', ev=>{
+  // Turn header click → collapse/expand the whole turn's body.
+  const turn = ev.target.closest('tr.turnrow');
+  if (turn) {
+    const gi = turn.getAttribute('data-turn');
+    const body = document.querySelector('tbody.turnbody[data-turnbody="'+gi+'"]');
+    if (body) {
+      const collapsed = body.classList.toggle('collapsed');
+      const car = turn.querySelector('.tcaret'); if (car) car.textContent = collapsed ? '▸' : '▾';
+    }
+    return;
+  }
+  // Row click → expand/collapse that row's detail panel.
   const tr = ev.target.closest('tr.can-expand'); if(!tr) return;
   const i = tr.getAttribute('data-i');
   const panel = document.querySelector('tr.xpanel[data-xi="'+i+'"]');
