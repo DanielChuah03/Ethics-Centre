@@ -160,6 +160,9 @@ function buildData(scope) {
         action: b.action || null, cmd_class: b.cmd_class || null,
         outcome: b.outcome || null, file_ext: b.file_ext || null,
         file_dir: b.file_dir || null,
+        reply: b.reply || null, credits: (typeof b.credits==="number"?b.credits:null),
+        elapsedMs: (typeof b.elapsedMs==="number"?b.elapsedMs:null), model: b.model || null,
+        tools: Array.isArray(b.tools)?b.tools:null,
       });
       if (b.cmd_class) totals.byCmdClass[b.cmd_class] = (totals.byCmdClass[b.cmd_class]||0) + 1;
       if (b.outcome === "success" || b.outcome === "error") totals.byOutcome[b.outcome]++;
@@ -318,6 +321,11 @@ function humanize(b) {
   const okTail = b.outcome === "error" ? " — failed" : (b.outcome === "success" ? "" : "");
 
   // Prompts — show the user's ask directly.
+  if (b.event === "AITurn") {
+    const cost = (typeof b.credits === "number" && b.credits > 0) ? (" · " + b.credits + " cr") : "";
+    const secs = (typeof b.elapsedMs === "number") ? (" · " + Math.round(b.elapsedMs/1000) + "s") : "";
+    return "AI replied: " + clip(b.reply, 150) + cost + secs;
+  }
   if (b.event === "UserPromptSubmit") return "Asked: " + clip(b.prompt, 160);
 
   // Guardrail decisions — the meaning, not the mechanics.
@@ -1200,6 +1208,11 @@ function renderActivity(){
     if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(redact(e.command))+'</pre>']);
     if (e.path) kv.push(['Path', '<span class="mono">'+esc(redact(e.path))+'</span>']);
     if (e.prompt && e.event==='UserPromptSubmit') kv.push(['Prompt','<pre class="xcmd">'+esc(e.prompt)+'</pre>']);
+    if (e.reply) kv.push(['AI reply','<pre class="xcmd">'+esc(redact(e.reply))+'</pre>']);
+    if (typeof e.credits === 'number' && e.credits > 0) kv.push(['Cost', e.credits + ' credits']);
+    if (typeof e.elapsedMs === 'number') kv.push(['Duration', Math.round(e.elapsedMs/1000) + 's']);
+    if (e.model) kv.push(['Model','<span class="mono">'+esc(e.model)+'</span>']);
+    if (e.tools && e.tools.length) kv.push(['Tools used', esc(e.tools.join(', '))]);
     if (e.reason) kv.push(['Reason', esc(redact(e.reason))]);
     if (e.tool) kv.push(['Tool', '<span class="mono">'+esc(e.tool)+'</span>']);
     if (e.outcome) kv.push(['Outcome','<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>']);
