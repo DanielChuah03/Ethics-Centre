@@ -1421,6 +1421,10 @@ function syncOrgOptions(){
 }
 
 async function refresh(){
+  // Don't rebuild the table while the user is reading an expanded row —
+  // a re-render would collapse it (the auto-close bug). Skip this cycle;
+  // the next tick (or a collapse) will refresh.
+  if (document.querySelector('tr.xpanel:not(.hidden)')) return;
   try{
     const res = await fetch('/data');
     if (res.status === 401) { location.href = '/login'; return; }
