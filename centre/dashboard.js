@@ -943,7 +943,7 @@ const PAGE = `<!doctype html>
         <select id="actProj"><option value="ALL">All projects</option></select>
       </label>
     </div>
-    <div class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-proj">Project</th><th class="c-cat">Cat</th><th class="c-act">Action</th><th class="c-type">Type</th><th class="c-out">Outcome</th><th class="c-tool">Tool</th><th>Detail (decrypted)</th></tr></thead>
+    <div class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-cat">Cat</th><th>Detail (decrypted)</th></tr></thead>
     <tbody id="actBody"></tbody></table></div>
     <div class="empty hidden" id="actEmpty">No events to show for this filter.</div>
   </section>
@@ -1333,15 +1333,15 @@ function renderActivity(){
       if (e.cmd_class) cmd[e.cmd_class]=(cmd[e.cmd_class]||0)+1;
       if (e.outcome==='success') ok++; else if (e.outcome==='error') err++;
     }
-    const errRate = (ok+err)>0 ? Math.round(err*100/(ok+err)) : 0;
-    // Key-indicator tiles (matches the Fleet page stat tiles).
+    // Governance-focused key indicators (an AI SIEM cares about what the
+    // guardrails caught, not dev success/error rates).
+    const secrets = rows.filter(e=>e.decision==='block' && e.category==='G').length;
     const tile=(val,label,cls)=> '<div class="stat '+(cls||'')+'"><div class="v">'+val+'</div><div class="l">'+label+'</div></div>';
     const html =
       tile(rows.length,'Events','accent') +
-      tile(blocks,'Blocked', blocks>0?'warn':'') +
-      tile(flags,'Scope flags', flags>0?'warn':'') +
-      tile(ok,'Clean','good') +
-      tile(errRate+'%','Error rate', errRate>0?'warn':'');
+      tile(blocks,'Blocked', blocks>0?'bad':'') +
+      tile(secrets,'Secrets caught', secrets>0?'bad':'') +
+      tile(flags,'Scope flags', flags>0?'warn':'');
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
   // Render mode: grouped-by-turn (default) or flat, toggled by the view chip.
@@ -1360,18 +1360,13 @@ function renderFlat(rows){
     const proj = e.project && e.project !== "_" ? e.project : "—";
     const kv = buildKv(e);
     const expandable = kv.length > 1 || e.command || e.prompt;
-    const panel = expandable ? ('<tr class="xpanel hidden" data-xi="'+i+'"><td colspan="9"><div class="xwrap">'+
+    const panel = expandable ? ('<tr class="xpanel hidden" data-xi="'+i+'"><td colspan="4"><div class="xwrap">'+
       kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
       '</div></td></tr>') : '';
     return '<tr class="evrow'+(expandable?' can-expand':'')+'" data-i="'+i+'">'+
       '<td class="c-time mono">'+(expandable?'<span class="caret">▸</span>':'')+when(e.ts)+'</td>'+
       '<td class="c-dev mono">'+esc(e.device)+'</td>'+
-      '<td class="c-proj mono" title="'+esc(proj)+'">'+esc(proj)+'</td>'+
       '<td class="c-cat"><span class="cat '+e.category+'">'+CAT_LABEL[e.category]+'</span></td>'+
-      '<td class="c-act mono">'+esc(e.action||'')+'</td>'+
-      '<td class="c-type">'+(e.cmd_class?'<span class="ctype">'+esc(e.cmd_class)+'</span>':'')+'</td>'+
-      '<td class="c-out">'+(e.outcome?'<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>':'')+'</td>'+
-      '<td class="c-tool mono">'+esc(e.tool||'')+'</td>'+
       '<td class="detail" title="'+d+'"><span class="evsum">'+sum+'</span></td></tr>'+panel;
   }).join('');
 }
