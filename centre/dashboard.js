@@ -1035,6 +1035,56 @@ let srcFilter = "ALL";   // default source filter for the Event Log
                          // (app | dev | ALL). Defaults to ALL so the Event Log opens
                          // on the full fleet view: dev build-time + deployed app traffic.
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function redact(s){
+  if(!s) return s;
+  var str=String(s), out='', i, ch, k, groups, digits, ok;
+  // IPv4 -> [ip]
+  i=0;
+  while(i<str.length){
+    ch=str[i];
+    if(ch>='0'&&ch<='9'){
+      k=i; ok=true;
+      for(groups=0;groups<4;groups++){
+        digits=0;
+        while(k<str.length&&str[k]>='0'&&str[k]<='9'&&digits<3){k++;digits++;}
+        if(digits===0){ok=false;break;}
+        if(groups<3){ if(str[k]==='.'){k++;} else {ok=false;break;} }
+      }
+      if(ok&&!(str[k]>='0'&&str[k]<='9')){ out+='[ip]'; i=k; continue; }
+    }
+    out+=ch; i++;
+  }
+  str=out;
+  // key/cert paths -> [key]
+  var exts=['.pem','.key','.ppk','.pfx','.p12'], lower=str.toLowerCase(), e2, from, at, start, end, c;
+  for(e2=0;e2<exts.length;e2++){
+    from=0;
+    while(true){
+      at=lower.indexOf(exts[e2],from);
+      if(at<0) break;
+      start=at;
+      while(start>0){ c=str[start-1]; if(c===' '||c==='"'||c==="'"||c==='='||c==='('){break;} start--; }
+      end=at+exts[e2].length;
+      str=str.slice(0,start)+'[key]'+str.slice(end);
+      lower=str.toLowerCase();
+      from=start+5;
+    }
+  }
+  // user@host -> [user]@[host]
+  out=''; i=0;
+  while(i<str.length){
+    if(str[i]==='@'){
+      var us=out.length;
+      while(us>0){ var uc=out[us-1]; var w=(uc>='a'&&uc<='z')||(uc>='A'&&uc<='Z')||(uc>='0'&&uc<='9')||uc==='.'||uc==='-'||uc==='_'; if(!w) break; us--; }
+      var he=i+1;
+      while(he<str.length){ var hc=str[he]; var h2=(hc>='a'&&hc<='z')||(hc>='A'&&hc<='Z')||(hc>='0'&&hc<='9')||hc==='.'||hc==='-'||hc==='_'; if(!h2) break; he++; }
+      if(us<out.length&&he>i+1){ out=out.slice(0,us)+'[user]@[host]'; i=he; continue; }
+    }
+    out+=str[i]; i++;
+  }
+  return out;
+}
 function when(ts){ return ts ? new Date(ts).toLocaleString() : "—"; }
 function shortWhen(ts){
   if(!ts) return "—";
