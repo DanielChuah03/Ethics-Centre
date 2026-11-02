@@ -1288,7 +1288,7 @@ function renderEnroll(){
     const orgCell = clickable
       ? '<span class="org-link">'+esc(r.org)+' <span class="org-link-hint">→ view fleet</span></span>'
       : '<span style="color:var(--accent);font-weight:650">'+esc(r.org)+'</span>';
-    return '<tr class="enrow'+(clickable?' clickable':'')+'"'+(clickable?' data-org="'+esc(r.org)+'" title="Open this org\\'s fleet"':'')+'>'+
+    return '<tr class="enrow'+(clickable?' clickable':'')+'"'+(clickable?' data-org="'+esc(r.org)+'" title="Open this org\'s fleet"':'')+'>'+
       '<td>'+orgCell+'</td>'+
       '<td class="c-tok mono">'+toks+'</td>'+
       '<td class="c-stat"><span class="sbadge '+sclass+'">'+(statLabel[r.status]||r.status)+'</span></td>'+
