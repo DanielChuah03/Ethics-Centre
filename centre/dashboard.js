@@ -1421,14 +1421,18 @@ function syncOrgOptions(){
 }
 
 async function refresh(){
-  // Don't rebuild the table while the user is reading an expanded row —
-  // a re-render would collapse it (the auto-close bug). Skip this cycle;
-  // the next tick (or a collapse) will refresh.
+  // Don't rebuild the table while the user is reading an expanded row — a
+  // re-render would collapse it (the auto-close bug). We check BOTH before the
+  // fetch and again after it resolves, because a row can be expanded during the
+  // network round-trip of an in-flight poll.
   if (document.querySelector('tr.xpanel:not(.hidden)')) return;
   try{
     const res = await fetch('/data');
     if (res.status === 401) { location.href = '/login'; return; }
-    DATA = await res.json();
+    const data = await res.json();
+    // Re-check: user may have expanded a row while we were fetching.
+    if (document.querySelector('tr.xpanel:not(.hidden)')) return;
+    DATA = data;
     applyViewer();
     renderAll();
   }
