@@ -1132,7 +1132,7 @@ function redact(s){
   return out;
 }
 function when(ts){ return ts ? new Date(ts).toLocaleString() : "—"; }
-function clip(s,n){ s=String(s||'').replace(/\s+/g,' ').trim(); return s.length>n ? s.slice(0,n)+'…' : s; }
+function clip(s,n){ s=String(s||'').replace(/\\s+/g,' ').trim(); return s.length>n ? s.slice(0,n)+'…' : s; }
 function shortWhen(ts){
   if(!ts) return "—";
   const d=new Date(ts);
