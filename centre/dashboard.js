@@ -489,9 +489,6 @@ const PAGE = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>GROW · Ethics Centre</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   :root{
     --bg:#070b07; --bg2:#0a0f0a; --surface:#0d130d; --surface2:#121a12; --line:#1e2a1e;
@@ -509,7 +506,7 @@ const PAGE = `<!doctype html>
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{margin:0;font-family:'JetBrains Mono',ui-monospace,'Cascadia Code',monospace;min-height:100vh;
+  body{margin:0;font-family:ui-monospace,'Courier New',monospace;min-height:100vh;
     color:var(--txt);font-size:13px;line-height:1.55;letter-spacing:0;
     background:
       radial-gradient(900px 500px at 15% -14%, rgba(74,222,128,.05), transparent 60%),
@@ -689,8 +686,8 @@ const PAGE = `<!doctype html>
   .catpill.R{color:var(--cyan);background:var(--cyan-soft)}
   .catpill.O{color:var(--dim);background:var(--surface2)}
   .catpill.W{color:var(--violet);background:var(--violet-soft)}
-  .mono{font-family:'Cascadia Code','JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--dim)}
-  .hashmono{font-family:'Cascadia Code',ui-monospace,monospace;font-size:11.5px;color:var(--faint)}
+  .mono{font-family:ui-monospace,'Courier New',monospace;font-size:12px;color:var(--dim)}
+  .hashmono{font-family:ui-monospace,'Courier New',monospace;font-size:11.5px;color:var(--faint)}
 
   .actbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap}
   .filters{display:flex;gap:8px;flex-wrap:wrap}
@@ -753,7 +750,7 @@ const PAGE = `<!doctype html>
   .secretbox{margin-top:12px;background:#060a06;border:1px dashed rgba(74,222,128,.4);
     border-radius:var(--radius-sm);padding:12px 14px}
   .secretbox .lbl{font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
-  .secretbox .val{font-family:'Cascadia Code','JetBrains Mono',ui-monospace,monospace;font-size:12.5px;
+  .secretbox .val{font-family:ui-monospace,'Courier New',monospace;font-size:12.5px;
     color:var(--txt);word-break:break-all;user-select:all}
   .secretbox .warn{font-size:10.5px;color:var(--dim);margin-top:8px}
   .copybtn{margin-top:10px;font-size:11px;padding:5px 10px;background:var(--accent-soft);
@@ -809,7 +806,7 @@ const PAGE = `<!doctype html>
   /* Force the Event Log body to a reliable system font (avoids a web-font glyph
      rendering issue where lowercase 's' failed to draw in some browsers). */
   #actBody td, #actBody .evsum, #actBody .tprompt, #actBody .mono{
-    font-family:ui-monospace,'Cascadia Code','Consolas','Courier New',monospace !important;
+    font-family:ui-monospace,'Courier New',monospace !important;
     font-variant-ligatures:none;font-feature-settings:normal;text-rendering:optimizeLegibility;
     -webkit-font-smoothing:auto;
   }
@@ -887,8 +884,8 @@ const PAGE = `<!doctype html>
   .arow:hover{transform:translateX(2px)}
   .arow.block{border-left:3px solid var(--warn);background:linear-gradient(90deg,var(--warn-soft),transparent 70%)}
   .arow.scope{border-left:3px solid var(--cyan);background:linear-gradient(90deg,var(--cyan-soft),transparent 70%)}
-  .arow-time{flex:none;color:var(--faint);font-family:'Cascadia Code',ui-monospace,monospace;font-size:12px;min-width:150px}
-  .arow-dev{flex:none;min-width:130px;color:var(--dim);font-family:'Cascadia Code',ui-monospace,monospace;font-size:12px}
+  .arow-time{flex:none;color:var(--faint);font-family:ui-monospace,'Courier New',monospace;font-size:12px;min-width:150px}
+  .arow-dev{flex:none;min-width:130px;color:var(--dim);font-family:ui-monospace,'Courier New',monospace;font-size:12px}
   .arow-reason{flex:1 1 0;min-width:0;font-size:13px;color:var(--txt);overflow-wrap:anywhere;word-break:break-word}
   .gcmd{font-family:inherit;font-size:12px;color:var(--accent);margin-top:6px;
     overflow-wrap:anywhere;background:rgba(74,222,128,.08);padding:5px 9px;border-radius:var(--radius-sm);display:inline-block}
@@ -2123,10 +2120,9 @@ refresh(); /* auto-refresh temporarily disabled for debugging */
 const LOGIN_PAGE = (err) => `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>GROW · Sign in</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
 <style>
   body{margin:0;height:100vh;display:grid;place-items:center;background:#070b07;
-    font-family:'JetBrains Mono',ui-monospace,monospace;color:#d6e8d6}
+    font-family:ui-monospace,'Courier New',monospace;color:#d6e8d6}
   .card{width:320px;background:#0d130d;border:1px solid #1e2a1e;border-radius:10px;padding:28px}
   .logo{width:34px;height:34px;border-radius:8px;background:#4ade80;color:#070b07;display:grid;
     place-items:center;font-weight:800;margin-bottom:16px}
@@ -2152,10 +2148,9 @@ const LOGIN_PAGE = (err) => `<!doctype html><html lang="en"><head>
 const CHANGE_PW_PAGE = (err, { forced = false } = {}) => `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>GROW · Set a new password</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
 <style>
   body{margin:0;height:100vh;display:grid;place-items:center;background:#070b07;
-    font-family:'JetBrains Mono',ui-monospace,monospace;color:#d6e8d6}
+    font-family:ui-monospace,'Courier New',monospace;color:#d6e8d6}
   .card{width:340px;background:#0d130d;border:1px solid #1e2a1e;border-radius:10px;padding:28px}
   .logo{width:34px;height:34px;border-radius:8px;background:#4ade80;color:#070b07;display:grid;
     place-items:center;font-weight:800;margin-bottom:16px}
