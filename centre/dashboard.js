@@ -849,8 +849,6 @@ const PAGE = `<!doctype html>
   .astat .av{font-size:19px;font-weight:700;line-height:1;color:var(--txt)}
   .astat .al{font-size:10px;color:var(--dim);margin-top:3px}
   .astat.good .av{color:#4ade80} .astat.warn .av{color:#f4c15d} .astat.bad .av{color:#ff8a8a} .astat.mut .av{color:var(--faint)}
-  .cchips{display:flex;flex-wrap:wrap;gap:6px;max-width:420px}
-  .cchip{display:inline-flex;gap:6px;align-items:center;font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:10px;color:var(--dim)} .cchip b{color:var(--txt)}
   th.c-act,td.c-act{width:86px;font-size:12px;color:var(--muted)}
   th.c-type,td.c-type{width:104px} .ctype{font-size:11px;padding:1px 6px;border:1px solid var(--line);border-radius:10px;color:var(--muted)}
   th.c-out,td.c-out{width:76px} .outcome{font-size:11px;padding:1px 6px;border-radius:10px} .outcome.success{color:#6ee7a8;background:rgba(110,231,168,.12)} .outcome.error{color:#ff8a8a;background:rgba(255,138,138,.14)}
@@ -1352,21 +1350,14 @@ function renderActivity(){
 
   document.getElementById('actLabel').textContent = 'Event log · '+rows.length+' event'+(rows.length===1?'':'s')+' (decrypted at centre)';
   document.getElementById('actEmpty').classList.toggle('hidden', rows.length>0);
-  // --- Analytics strip (improvement #3): guard decisions + command mix + outcomes.
+  // --- Analytics strip: the one security-relevant summary — guard decisions.
+  // (Command mix and outcome/error rate were dropped as noise for a SIEM view.)
   (function(){
     const blocks = rows.filter(e=>e.decision==='block').length;
     const flags  = rows.filter(e=>e.decision==='allow' && e.category==='R').length;
-    const cmd = {};
-    for (const e of rows){
-      if (e.cmd_class) cmd[e.cmd_class]=(cmd[e.cmd_class]||0)+1;
-    }
     const stat=(val,label,cls)=> '<div class="astat '+(cls||'')+'"><div class="av">'+val+'</div><div class="al">'+label+'</div></div>';
-    const topCmd = Object.entries(cmd).sort((a,b)=>b[1]-a[1]).slice(0,6)
-      .map(([k,v])=>'<span class="cchip">'+esc(k)+'<b>'+v+'</b></span>').join('');
     const card=(title,inner)=> '<div class="acard"><div class="ahd">'+title+'</div><div class="abody">'+inner+'</div></div>';
-    const html =
-      card('Guardrails', stat(blocks,'blocked',blocks>0?'bad':'mut')+stat(flags,'scope flags',flags>0?'warn':'mut')) +
-      (topCmd ? card('Commands', '<div class="cchips">'+topCmd+'</div>') : '');
+    const html = card('Guardrails', stat(blocks,'blocked',blocks>0?'bad':'mut')+stat(flags,'scope flags',flags>0?'warn':'mut'));
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
   const tablePanel = document.getElementById('actTablePanel');
