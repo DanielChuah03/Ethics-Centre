@@ -878,7 +878,7 @@ const PAGE = `<!doctype html>
    <div class="logo">G</div>
    <div>
      <h1>Ethics Centre</h1>
-     <div class="sub"><span class="pill-g">Govern</span><span class="dotsep">·</span><span class="pill-g">Restrict</span><span class="dotsep">·</span><span class="pill-g">Observe</span><span class="dotsep">·</span><span class="pill-g">Wall off</span><span class="dotsep">·</span><span class="live"><span class="livedot"></span>live</span></div>
+     <div class="sub"><span class="live"><span class="livedot"></span>live</span></div>
    </div>
   </div>
   <div class="topbar">
@@ -1285,9 +1285,9 @@ function renderActivity(){
   const srcs = [['ALL','All sources'],['dev','Dev activity'],['app','App traffic']];
   const srcHtml = '<div class="srcgroup">' + srcs.map(([f,l])=>
     '<div class="chip src '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div>';
-  const cats = [['ALL','All'],['G','G · Data'],['R','R · Scope'],['O','O · Observe'],['W','W · Wall']];
-  const catHtml = cats.map(([f,l])=>
-    '<div class="chip '+(actFilter===f?'active':'')+'" data-f="'+f+'">'+l+'</div>').join('');
+  const cats = [['ALL','All',''],['G','G','Govern · data'],['R','R','Restrict · scope'],['O','O','Observe'],['W','W','Wall off']];
+  const catHtml = cats.map(([f,l,tip])=>
+    '<div class="chip '+(actFilter===f?'active':'')+'" data-f="'+f+'"'+(tip?' title="'+tip+'"':'')+'>'+l+'</div>').join('');
   if (window.groupMode === undefined) window.groupMode = true;
   const views = [['group','Grouped'],['flat','Flat']];
   const viewHtml = views.map(([f,l])=>
@@ -1319,19 +1319,16 @@ function renderActivity(){
   (function(){
     const blocks = rows.filter(e=>e.decision==='block').length;
     const flags  = rows.filter(e=>e.decision==='allow' && e.category==='R').length;
-    const cmd = {}; let ok=0, err=0;
+    const cmd = {};
     for (const e of rows){
       if (e.cmd_class) cmd[e.cmd_class]=(cmd[e.cmd_class]||0)+1;
-      if (e.outcome==='success') ok++; else if (e.outcome==='error') err++;
     }
-    const errRate = (ok+err)>0 ? Math.round(err*100/(ok+err)) : 0;
     const stat=(val,label,cls)=> '<div class="astat '+(cls||'')+'"><div class="av">'+val+'</div><div class="al">'+label+'</div></div>';
     const topCmd = Object.entries(cmd).sort((a,b)=>b[1]-a[1]).slice(0,6)
       .map(([k,v])=>'<span class="cchip">'+esc(k)+'<b>'+v+'</b></span>').join('');
     const card=(title,inner)=> '<div class="acard"><div class="ahd">'+title+'</div><div class="abody">'+inner+'</div></div>';
     const html =
       card('Guardrails', stat(blocks,'blocked',blocks>0?'bad':'mut')+stat(flags,'scope flags',flags>0?'warn':'mut')) +
-      card('Outcomes', stat(ok,'ok','good')+stat(err,'errors',err>0?'bad':'mut')+stat(errRate+'%','err rate',errRate>0?'warn':'mut')) +
       (topCmd ? card('Commands', '<div class="cchips">'+topCmd+'</div>') : '');
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
