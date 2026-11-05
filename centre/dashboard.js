@@ -489,6 +489,9 @@ const PAGE = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>GROW · Ethics Centre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   :root{
     --bg:#070b07; --bg2:#0a0f0a; --surface:#0d130d; --surface2:#121a12; --line:#1e2a1e;
@@ -506,7 +509,7 @@ const PAGE = `<!doctype html>
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{margin:0;font-family:ui-monospace,'Courier New',monospace;min-height:100vh;
+  body{margin:0;font-family:'JetBrains Mono',ui-monospace,'Cascadia Code',monospace;min-height:100vh;
     color:var(--txt);font-size:13px;line-height:1.55;letter-spacing:0;
     background:
       radial-gradient(900px 500px at 15% -14%, rgba(74,222,128,.05), transparent 60%),
@@ -590,8 +593,6 @@ const PAGE = `<!doctype html>
   .fleetTitle{margin-bottom:18px}
 
   .strip{display:grid;grid-template-columns:repeat(6,1fr);gap:13px}
-  /* Event Log key-indicator tiles: auto-fit so 5 tiles space cleanly, with a gap before the filter row */
-  #actAnalytics.strip{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px}
   .stat{position:relative;overflow:hidden;background:var(--surface);
     border:1px solid var(--line);border-radius:var(--radius);padding:17px 18px;box-shadow:var(--shadow);
     transition:transform .18s, border-color .18s}
@@ -686,15 +687,12 @@ const PAGE = `<!doctype html>
   .catpill.R{color:var(--cyan);background:var(--cyan-soft)}
   .catpill.O{color:var(--dim);background:var(--surface2)}
   .catpill.W{color:var(--violet);background:var(--violet-soft)}
-  .mono{font-family:ui-monospace,'Courier New',monospace;font-size:12px;color:var(--dim)}
-  .hashmono{font-family:ui-monospace,'Courier New',monospace;font-size:11.5px;color:var(--faint)}
+  .mono{font-family:'Cascadia Code','JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--dim)}
+  .hashmono{font-family:'Cascadia Code',ui-monospace,monospace;font-size:11.5px;color:var(--faint)}
 
   .actbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap}
   .filters{display:flex;gap:8px;flex-wrap:wrap}
-  .projpick{font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--faint);display:inline-flex;align-items:center;gap:8px}
-  .projpick select{font-family:inherit;font-size:12px;font-weight:600;color:var(--txt);background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;text-transform:none;letter-spacing:0;transition:.14s}
-  .projpick select:hover{border-color:rgba(74,222,128,.4)}
-  .projpick select:focus{outline:none;border-color:var(--accent)}
+  .projpick{font-size:12px;color:var(--dim);display:inline-flex;align-items:center}
   .chip{padding:6px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer;
     border:1px solid var(--line);color:var(--dim);background:var(--surface);transition:.16s}
   .chip:hover{color:var(--txt);border-color:rgba(74,222,128,.3)}
@@ -706,19 +704,6 @@ const PAGE = `<!doctype html>
   .chip.src:hover{color:var(--txt);border-color:transparent}
   .chip.src.active{color:var(--cyan);background:var(--cyan-soft);border-color:rgba(95,181,154,.4)}
   .chipsep{display:inline-block;width:1px;align-self:stretch;margin:0 4px;background:var(--line)}
-  /* Compact segmented-control filters */
-  #actFilters{display:inline-flex;gap:22px;align-items:center;flex-wrap:wrap}
-  /* Understated grouped toggles with a small label — one cohesive, clean control */
-  .fgroup{display:inline-flex;align-items:center;gap:10px}
-  .fglabel{font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--faint)}
-  .seg{display:inline-flex;gap:3px}
-  .segbtn{padding:5px 12px;border-radius:999px;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--dim);transition:.14s;user-select:none;border:1px solid transparent}
-  .segbtn:hover{color:var(--txt);background:var(--surface2)}
-  .segbtn.active{color:#0a0f0a;background:var(--accent);border-color:var(--accent)}
-  .segbtn.cat{min-width:26px;text-align:center}
-  .segbtn.cat.active{color:#0a0f0a}
-  .segbtn.cat.G.active{background:#ff8a8a;border-color:#ff8a8a} .segbtn.cat.R.active{background:#f4c15d;border-color:#f4c15d}
-  .segbtn.cat.O.active{background:#4ade80;border-color:#4ade80} .segbtn.cat.W.active{background:#c48bff;border-color:#c48bff}
 
   .panel{background:var(--surface);
     border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
@@ -750,7 +735,7 @@ const PAGE = `<!doctype html>
   .secretbox{margin-top:12px;background:#060a06;border:1px dashed rgba(74,222,128,.4);
     border-radius:var(--radius-sm);padding:12px 14px}
   .secretbox .lbl{font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
-  .secretbox .val{font-family:ui-monospace,'Courier New',monospace;font-size:12.5px;
+  .secretbox .val{font-family:'Cascadia Code','JetBrains Mono',ui-monospace,monospace;font-size:12.5px;
     color:var(--txt);word-break:break-all;user-select:all}
   .secretbox .warn{font-size:10.5px;color:var(--dim);margin-top:8px}
   .copybtn{margin-top:10px;font-size:11px;padding:5px 10px;background:var(--accent-soft);
@@ -803,13 +788,6 @@ const PAGE = `<!doctype html>
   th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line-soft);vertical-align:top}
   td{overflow:hidden;text-overflow:ellipsis}
   td.detail{white-space:normal;overflow-wrap:anywhere;word-break:break-word;color:var(--txt)}
-  /* Force the Event Log body to a reliable system font (avoids a web-font glyph
-     rendering issue where lowercase 's' failed to draw in some browsers). */
-  #actBody td, #actBody .evsum, #actBody .tprompt, #actBody .mono{
-    font-family:ui-monospace,'Courier New',monospace !important;
-    font-variant-ligatures:none;font-feature-settings:normal;text-rendering:optimizeLegibility;
-    -webkit-font-smoothing:auto;
-  }
   tr:last-child td{border-bottom:none}
   thead th{color:var(--faint);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;
     background:var(--surface2);position:sticky;top:0;backdrop-filter:blur(6px)}
@@ -817,36 +795,28 @@ const PAGE = `<!doctype html>
   tbody tr:hover td{background:rgba(74,222,128,.05)}
   th.c-time,td.c-time{width:160px} th.c-dev,td.c-dev{width:130px} th.c-proj,td.c-proj{width:150px}
   td.detail .evsum{display:block;color:var(--txt)}
-  /* --- Turn grouping --- */
-  tr.turnrow{cursor:pointer;background:var(--surface2)} tr.turnrow:hover{background:var(--surface)}
-  tr.turnrow td{border-top:1px solid var(--line);padding-top:10px;padding-bottom:10px}
-  .tcaret{display:inline-block;width:12px;color:var(--accent);margin-right:4px}
-  td.turnhead{white-space:normal}
-  .tprompt{color:var(--txt);font-weight:400;margin-right:10px}
-  .tnoprompt{color:var(--faint);font-weight:400;font-style:italic}
-  .tchips{display:inline-flex;flex-wrap:wrap;gap:5px;vertical-align:middle;margin-left:4px}
-  .tchip{font-size:10px;padding:1px 7px;border:1px solid var(--line);border-radius:10px;color:var(--dim)}
-  .tchip.bad{color:#ff8a8a;border-color:rgba(255,138,138,.4)} .tchip.warn{color:#f4c15d;border-color:rgba(244,193,93,.4)}
-  tr.turn-collapsed{display:none}
-  tr.childrow td.c-time{padding-left:22px;color:var(--dim)}
-  tr.childrow td{background:var(--bg)}
-  /* --- Grouped div-card view (avoids the table-row glyph bug) --- */
+  tr.can-expand{cursor:pointer} tr.can-expand:hover td{background:var(--surface2)}
+  /* --- Grouped div-card view (per-partition turns) --- */
   #actGrouped{display:flex;flex-direction:column;gap:10px}
   .gcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
   .ghead{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:var(--surface2);flex-wrap:wrap}
   .ghead:hover{background:var(--surface)}
   .gcaret{color:var(--accent);width:12px;display:inline-block}
   .gtime{font-size:11px;color:var(--faint);white-space:nowrap}
+  .tprompt{color:var(--txt);font-weight:600}
+  .tnoprompt{color:var(--faint);font-style:italic}
+  .tchips{display:inline-flex;flex-wrap:wrap;gap:5px;margin-left:auto}
+  .tchip{font-size:10px;padding:1px 8px;border:1px solid var(--line);border-radius:10px;color:var(--dim)}
+  .tchip.bad{color:#ff8a8a;border-color:rgba(255,138,138,.4)} .tchip.warn{color:#f4c15d;border-color:rgba(244,193,93,.4)}
   .gkids{display:flex;flex-direction:column}
   .gkids.collapsed{display:none}
-  .gaction{display:flex;align-items:center;gap:12px;padding:8px 14px 8px 34px;border-top:1px solid var(--line-soft);cursor:pointer}
+  .gaction{display:flex;align-items:center;gap:12px;padding:8px 14px 8px 32px;border-top:1px solid var(--line-soft);cursor:pointer}
   .gaction:hover{background:var(--surface2)}
-  .ga-time{font-size:11px;color:var(--faint);white-space:nowrap;min-width:92px}
+  .ga-time{font-size:11px;color:var(--faint);white-space:nowrap;min-width:150px}
   .ga-sum{color:var(--txt);font-size:13px;overflow-wrap:anywhere}
-  .gpanel{display:none;padding:4px 14px 12px 34px;background:var(--bg2)}
+  .gpanel{display:none;padding:4px 14px 12px 32px;background:var(--bg2)}
   .gpanel:not(.hidden){display:block}
   .gpanel.hidden{display:none}
-  tr.can-expand{cursor:pointer} tr.can-expand:hover td{background:var(--surface2)}
   .caret{display:inline-block;width:12px;color:var(--faint);transition:transform .15s;margin-right:2px}
   tr.open .caret{transform:rotate(90deg);color:var(--accent)}
   tr.xpanel.hidden{display:none}
@@ -857,9 +827,15 @@ const PAGE = `<!doctype html>
   .xv{flex:1 1 0;min-width:0;color:var(--txt);overflow-wrap:anywhere}
   .xcmd{margin:0;white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;color:var(--txt)}
   td.detail .evraw{display:block;margin-top:2px;font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .analytics{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin:4px 0 14px;font-size:12.5px;color:var(--dim)}
-  .sstat b{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;margin-right:3px}
-  .sstat.good b{color:#4ade80} .sstat.warn b{color:#f4c15d} .sstat.bad b{color:#ff8a8a} .sstat.mut b{color:var(--faint)}
+  .analytics{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}
+  .acard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 13px}
+  .ahd{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  .abody{display:flex;gap:16px;align-items:flex-end}
+  .astat .av{font-size:19px;font-weight:700;line-height:1;color:var(--txt)}
+  .astat .al{font-size:10px;color:var(--dim);margin-top:3px}
+  .astat.good .av{color:#4ade80} .astat.warn .av{color:#f4c15d} .astat.bad .av{color:#ff8a8a} .astat.mut .av{color:var(--faint)}
+  .cchips{display:flex;flex-wrap:wrap;gap:6px;max-width:420px}
+  .cchip{display:inline-flex;gap:6px;align-items:center;font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:10px;color:var(--dim)} .cchip b{color:var(--txt)}
   th.c-act,td.c-act{width:86px;font-size:12px;color:var(--muted)}
   th.c-type,td.c-type{width:104px} .ctype{font-size:11px;padding:1px 6px;border:1px solid var(--line);border-radius:10px;color:var(--muted)}
   th.c-out,td.c-out{width:76px} .outcome{font-size:11px;padding:1px 6px;border-radius:10px} .outcome.success{color:#6ee7a8;background:rgba(110,231,168,.12)} .outcome.error{color:#ff8a8a;background:rgba(255,138,138,.14)}
@@ -884,8 +860,8 @@ const PAGE = `<!doctype html>
   .arow:hover{transform:translateX(2px)}
   .arow.block{border-left:3px solid var(--warn);background:linear-gradient(90deg,var(--warn-soft),transparent 70%)}
   .arow.scope{border-left:3px solid var(--cyan);background:linear-gradient(90deg,var(--cyan-soft),transparent 70%)}
-  .arow-time{flex:none;color:var(--faint);font-family:ui-monospace,'Courier New',monospace;font-size:12px;min-width:150px}
-  .arow-dev{flex:none;min-width:130px;color:var(--dim);font-family:ui-monospace,'Courier New',monospace;font-size:12px}
+  .arow-time{flex:none;color:var(--faint);font-family:'Cascadia Code',ui-monospace,monospace;font-size:12px;min-width:150px}
+  .arow-dev{flex:none;min-width:130px;color:var(--dim);font-family:'Cascadia Code',ui-monospace,monospace;font-size:12px}
   .arow-reason{flex:1 1 0;min-width:0;font-size:13px;color:var(--txt);overflow-wrap:anywhere;word-break:break-word}
   .gcmd{font-family:inherit;font-size:12px;color:var(--accent);margin-top:6px;
     overflow-wrap:anywhere;background:rgba(74,222,128,.08);padding:5px 9px;border-radius:var(--radius-sm);display:inline-block}
@@ -902,7 +878,7 @@ const PAGE = `<!doctype html>
    <div class="logo">G</div>
    <div>
      <h1>Ethics Centre</h1>
-     <div class="sub"><span class="live"><span class="livedot"></span>live</span></div>
+     <div class="sub"><span class="pill-g">Govern</span><span class="dotsep">·</span><span class="pill-g">Restrict</span><span class="dotsep">·</span><span class="pill-g">Observe</span><span class="dotsep">·</span><span class="pill-g">Wall off</span><span class="dotsep">·</span><span class="live"><span class="livedot"></span>live</span></div>
    </div>
   </div>
   <div class="topbar">
@@ -949,14 +925,14 @@ const PAGE = `<!doctype html>
 
   <section id="activity" class="hidden">
     <div class="section-label" id="actLabel">Event log</div>
-    <div id="actAnalytics" class="strip"></div>
     <div class="actbar">
       <div class="filters" id="actFilters"></div>
       <label class="projpick mono">project&nbsp;
         <select id="actProj"><option value="ALL">All projects</option></select>
       </label>
     </div>
-    <div id="actTablePanel" class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-cat">Cat</th><th>Detail (decrypted)</th></tr></thead>
+    <div id="actAnalytics" class="analytics"></div>
+    <div id="actTablePanel" class="panel"><table><thead><tr><th class="c-time">Time</th><th class="c-dev">Device</th><th class="c-proj">Project</th><th class="c-cat">Cat</th><th class="c-act">Action</th><th class="c-type">Type</th><th class="c-out">Outcome</th><th class="c-tool">Tool</th><th>Detail (decrypted)</th></tr></thead>
     <tbody id="actBody"></tbody></table></div>
     <div id="actGrouped" class="hidden"></div>
     <div class="empty hidden" id="actEmpty">No events to show for this filter.</div>
@@ -1132,7 +1108,6 @@ function redact(s){
   return out;
 }
 function when(ts){ return ts ? new Date(ts).toLocaleString() : "—"; }
-function clip(s,n){ s=String(s||'').replace(/\\s+/g,' ').trim(); return s.length>n ? s.slice(0,n)+'…' : s; }
 function shortWhen(ts){
   if(!ts) return "—";
   const d=new Date(ts);
@@ -1307,18 +1282,17 @@ function renderActivity(){
   // Source toggle first — App (deployed runtime traffic) vs Dev (build-time) vs All.
   // Rendered as chips with a distinct data attribute so one delegated handler
   // can tell them apart from the category chips.
+  const srcs = [['ALL','All sources'],['dev','Dev activity'],['app','App traffic']];
+  const srcHtml = '<div class="srcgroup">' + srcs.map(([f,l])=>
+    '<div class="chip src '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div>';
+  const cats = [['ALL','All'],['G','G · Data'],['R','R · Scope'],['O','O · Observe'],['W','W · Wall']];
+  const catHtml = cats.map(([f,l])=>
+    '<div class="chip '+(actFilter===f?'active':'')+'" data-f="'+f+'">'+l+'</div>').join('');
   if (window.groupMode === undefined) window.groupMode = true;
-  // Compact filter bar: source segmented control · pillar letter-chips · view toggle.
-  const srcs = [['ALL','All'],['dev','Dev'],['app','App']];
-  const srcHtml = '<div class="fgroup"><span class="fglabel">Source</span><div class="seg">' + srcs.map(([f,l])=>
-    '<div class="segbtn '+(srcFilter===f?'active':'')+'" data-src="'+f+'">'+l+'</div>').join('') + '</div></div>';
-  const cats = [['ALL','All'],['G','G'],['R','R'],['O','O'],['W','W']];
-  const catHtml = '<div class="fgroup"><span class="fglabel">Pillar</span><div class="seg">' + cats.map(([f,l])=>
-    '<div class="segbtn '+(f!=='ALL'?'cat '+f:'')+' '+(actFilter===f?'active':'')+'" data-f="'+f+'" title="'+({ALL:'All pillars',G:'Govern',R:'Restrict',O:'Observe',W:'Wall off'}[f])+'">'+l+'</div>').join('') + '</div></div>';
   const views = [['group','Grouped'],['flat','Flat']];
-  const viewHtml = '<div class="fgroup"><span class="fglabel">View</span><div class="seg">' + views.map(([f,l])=>
-    '<div class="segbtn '+(((window.groupMode?'group':'flat')===f)?'active':'')+'" data-view="'+f+'">'+l+'</div>').join('') + '</div></div>';
-  document.getElementById('actFilters').innerHTML = srcHtml + catHtml + viewHtml;
+  const viewHtml = views.map(([f,l])=>
+    '<div class="chip '+(((window.groupMode?'group':'flat')===f)?'active':'')+'" data-view="'+f+'">'+l+'</div>').join('');
+  document.getElementById('actFilters').innerHTML = srcHtml + '<span class="chipsep"></span>' + catHtml + '<span class="chipsep"></span>' + viewHtml;
 
   let rows = eventsForOrg();
 
@@ -1350,52 +1324,55 @@ function renderActivity(){
       if (e.cmd_class) cmd[e.cmd_class]=(cmd[e.cmd_class]||0)+1;
       if (e.outcome==='success') ok++; else if (e.outcome==='error') err++;
     }
-    // Governance-focused key indicators (an AI SIEM cares about what the
-    // guardrails caught, not dev success/error rates).
-    const secrets = rows.filter(e=>e.decision==='block' && e.category==='G').length;
-    const tile=(val,label,cls)=> '<div class="stat '+(cls||'')+'"><div class="v">'+val+'</div><div class="l">'+label+'</div></div>';
+    const errRate = (ok+err)>0 ? Math.round(err*100/(ok+err)) : 0;
+    const stat=(val,label,cls)=> '<div class="astat '+(cls||'')+'"><div class="av">'+val+'</div><div class="al">'+label+'</div></div>';
+    const topCmd = Object.entries(cmd).sort((a,b)=>b[1]-a[1]).slice(0,6)
+      .map(([k,v])=>'<span class="cchip">'+esc(k)+'<b>'+v+'</b></span>').join('');
+    const card=(title,inner)=> '<div class="acard"><div class="ahd">'+title+'</div><div class="abody">'+inner+'</div></div>';
     const html =
-      tile(rows.length,'Events','accent') +
-      tile(blocks,'Blocked', blocks>0?'bad':'') +
-      tile(secrets,'Secrets caught', secrets>0?'bad':'') +
-      tile(flags,'Scope flags', flags>0?'warn':'');
+      card('Guardrails', stat(blocks,'blocked',blocks>0?'bad':'mut')+stat(flags,'scope flags',flags>0?'warn':'mut')) +
+      card('Outcomes', stat(ok,'ok','good')+stat(err,'errors',err>0?'bad':'mut')+stat(errRate+'%','err rate',errRate>0?'warn':'mut')) +
+      (topCmd ? card('Commands', '<div class="cchips">'+topCmd+'</div>') : '');
     const el=document.getElementById('actAnalytics'); if(el) el.innerHTML=html;
   })();
-  // Render mode: grouped-by-turn (default) or flat, toggled by the view chip.
-  if (window.groupMode === undefined) window.groupMode = true;
   const tablePanel = document.getElementById('actTablePanel');
   const groupedBox = document.getElementById('actGrouped');
   if (window.groupMode) {
-    groupedBox.innerHTML = renderGrouped(rows);
+    groupedBox.innerHTML = renderGroupedByPartition(rows);
     groupedBox.classList.remove('hidden');
     tablePanel.classList.add('hidden');
   } else {
-    document.getElementById('actBody').innerHTML = renderFlat(rows);
+    document.getElementById('actBody').innerHTML = renderFlatRows(rows);
     tablePanel.classList.remove('hidden');
     groupedBox.classList.add('hidden');
   }
 }
 
-// Build the flat per-event rows (the original view).
-function renderFlat(rows){
+// Build the flat 9-column table rows (the original view).
+function renderFlatRows(rows){
   return rows.slice(0,2000).map((e,i)=>{
     const d = esc(redact(e.detail||''));
     const sum = esc(redact(e.summary||e.detail||''));
     const proj = e.project && e.project !== "_" ? e.project : "—";
     const kv = buildKv(e);
     const expandable = kv.length > 1 || e.command || e.prompt;
-    const panel = expandable ? ('<tr class="xpanel hidden" data-xi="'+i+'"><td colspan="4"><div class="xwrap">'+
+    const panel = expandable ? ('<tr class="xpanel hidden" data-xi="'+i+'"><td colspan="9"><div class="xwrap">'+
       kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
       '</div></td></tr>') : '';
     return '<tr class="evrow'+(expandable?' can-expand':'')+'" data-i="'+i+'">'+
       '<td class="c-time mono">'+(expandable?'<span class="caret">▸</span>':'')+when(e.ts)+'</td>'+
       '<td class="c-dev mono">'+esc(e.device)+'</td>'+
+      '<td class="c-proj mono" title="'+esc(proj)+'">'+esc(proj)+'</td>'+
       '<td class="c-cat"><span class="cat '+e.category+'">'+CAT_LABEL[e.category]+'</span></td>'+
+      '<td class="c-act mono">'+esc(e.action||'')+'</td>'+
+      '<td class="c-type">'+(e.cmd_class?'<span class="ctype">'+esc(e.cmd_class)+'</span>':'')+'</td>'+
+      '<td class="c-out">'+(e.outcome?'<span class="outcome '+e.outcome+'">'+esc(e.outcome)+'</span>':'')+'</td>'+
+      '<td class="c-tool mono">'+esc(e.tool||'')+'</td>'+
       '<td class="detail" title="'+d+'"><span class="evsum">'+sum+'</span></td></tr>'+panel;
   }).join('');
 }
 
-// Shared: the key/value pairs for an event's expand panel.
+// Shared expand-panel key/values for one event.
 function buildKv(e){
   const kv = [];
   if (e.command) kv.push(['Command','<pre class="xcmd">'+esc(redact(e.command))+'</pre>']);
@@ -1409,70 +1386,79 @@ function buildKv(e){
   return kv;
 }
 
-// Group events into turns: a new turn starts at each UserPromptSubmit; all
-// following events (tools, files, guard decisions) belong to it until the next
-// prompt. Events before the first prompt form an "untitled" lead group.
-// Grouped view, rebuilt for the 4-column table (Time · Device · Cat · Detail).
-// Each turn = a header row (the prompt + summary chips) followed by indented
-// child action rows. No nested <tbody>, correct colspans — the previous version
-// had 7/9-column markup against a 4-column table, which broke rendering.
-function renderGrouped(rows){
-  const sorted = rows.slice().sort((a,b)=> new Date(a.ts) - new Date(b.ts));
-  const groups = [];
+// --- Turn grouping (per partition, then merged) ----------------------------
+// THE FIX: a "turn" is a Stop-hook construct that only has meaning within ONE
+// partition's chain. Grouping across the merged all-partition stream splits and
+// cross-contaminates turns (app events with no prompts interleave by timestamp
+// between another project's prompts). So we group WITHIN each partition first,
+// then merge the resulting turns newest-first.
+function partitionKey(e){ return (e.org||'')+'|'+(e.user||'')+'|'+(e.device||'')+'|'+(e.project||''); }
+
+// Port of MockUp/group-by-turn.js groupByTurn, operating on one partition's rows.
+function groupByTurnOnePartition(lines){
+  const chron = lines.slice().sort((a,b)=> new Date(a.ts||0) - new Date(b.ts||0));
+  const turns = [];
   let cur = null;
-  for (const e of sorted){
-    if (e.event === 'UserPromptSubmit' || !cur){
-      cur = { prompt: (e.event==='UserPromptSubmit' ? (e.summary||e.prompt||'') : null),
-              ts: e.ts, device: e.device, events: [] };
-      groups.push(cur);
-      if (e.event === 'UserPromptSubmit') continue;
+  for (const e of chron){
+    if (e.event === 'UserPromptSubmit'){
+      if (cur) turns.push(cur);
+      cur = { prompt: e.prompt||'', promptEvent: e, ts: e.ts, events: [] };
+    } else {
+      if (!cur) cur = { prompt: null, promptEvent: null, ts: e.ts, events: [] };
+      cur.events.push(e);
     }
-    cur.events.push(e);
   }
-  groups.reverse(); // newest turn on top
+  if (cur) turns.push(cur);
+  return turns;
+}
 
-  // Render as DIV CARDS (no <table>/<tr>/colspan). The table-row grouping
-  // triggered a browser glyph-render bug; plain divs avoid it entirely.
+function renderGroupedByPartition(rows){
+  // 1) bucket by partition (respecting chain boundaries)
+  const buckets = new Map();
+  for (const e of rows){
+    const k = partitionKey(e);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(e);
+  }
+  // 2) group each partition's rows into turns, 3) merge all turns
+  let allTurns = [];
+  for (const [, lines] of buckets){
+    allTurns = allTurns.concat(groupByTurnOnePartition(lines));
+  }
+  // 4) newest-first by turn timestamp
+  allTurns.sort((a,b)=> new Date(b.ts||0) - new Date(a.ts||0));
+
+  // render as div cards (not table rows — table-row grouping proved fragile)
   let html = '';
-  groups.slice(0,500).forEach((g,gi)=>{
-    const n = g.events.length;
-    const blocks = g.events.filter(e=>e.decision==='block').length;
-    const flags  = g.events.filter(e=>e.decision==='allow' && e.category==='R').length;
-
-    const chips = [];
-    chips.push('<span class="tchip">'+n+' action'+(n===1?'':'s')+'</span>');
+  allTurns.slice(0,500).forEach((t,gi)=>{
+    const n = t.events.length;
+    const blocks = t.events.filter(e=>e.decision==='block').length;
+    const flags  = t.events.filter(e=>e.decision==='allow' && e.category==='R').length;
+    const chips = ['<span class="tchip">'+n+' action'+(n===1?'':'s')+'</span>'];
     if (blocks) chips.push('<span class="tchip bad">'+blocks+' blocked</span>');
     if (flags)  chips.push('<span class="tchip warn">'+flags+' scope</span>');
-
-    const title = g.prompt
-      ? '<span class="tprompt">'+esc(redact(clip(g.prompt,160)))+'</span>'
+    // Prefer the server-built summary ("Asked: ...") which needs no client clip.
+    const promptText = t.promptEvent ? (t.promptEvent.summary || ('Asked: '+(t.prompt||''))) : null;
+    const title = promptText
+      ? '<span class="tprompt">'+esc(redact(promptText))+'</span>'
       : '<span class="tnoprompt">activity before first prompt</span>';
-
-    // Child action lines
     let kids = '';
-    g.events.forEach((e,ci)=>{
+    t.events.forEach((e,ci)=>{
       const xi = 'g'+gi+'c'+ci;
-      const sum = esc(redact(e.summary||e.detail||e.action||''));
+      const s = esc(redact(e.summary||e.detail||e.action||''));
       const kv = buildKv(e);
-      const panel = '<div class="gpanel hidden" data-xi="'+xi+'">'+
-        kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
-        '</div>';
       kids += '<div class="gaction" data-i="'+xi+'">'+
         '<span class="ga-time mono">'+when(e.ts)+'</span>'+
         '<span class="cat '+e.category+'">'+CAT_LABEL[e.category]+'</span>'+
-        '<span class="ga-sum">'+sum+'</span>'+
-        '</div>'+panel;
+        '<span class="ga-sum">'+s+'</span></div>'+
+        '<div class="gpanel hidden" data-xi="'+xi+'">'+
+          kv.map(([k,v])=>'<div class="xrow"><span class="xk">'+k+'</span><span class="xv">'+v+'</span></div>').join('')+
+        '</div>';
     });
-
     html += '<div class="gcard" data-turn="'+gi+'">'+
-      '<div class="ghead">'+
-        '<span class="gcaret">▾</span>'+
-        '<span class="gtime mono">'+when(g.ts)+'</span>'+
-        title+
-        '<span class="tchips">'+chips.join('')+'</span>'+
-      '</div>'+
-      '<div class="gkids" data-kids="'+gi+'">'+kids+'</div>'+
-    '</div>';
+      '<div class="ghead"><span class="gcaret">▾</span><span class="gtime mono">'+when(t.ts)+'</span>'+title+
+        '<span class="tchips">'+chips.join('')+'</span></div>'+
+      '<div class="gkids" data-kids="'+gi+'">'+kids+'</div></div>';
   });
   return html;
 }
@@ -1558,18 +1544,14 @@ function syncOrgOptions(){
 }
 
 async function refresh(){
-  // Don't rebuild the table while the user is reading an expanded row — a
-  // re-render would collapse it (the auto-close bug). We check BOTH before the
-  // fetch and again after it resolves, because a row can be expanded during the
-  // network round-trip of an in-flight poll.
+  // Don't rebuild the table while the user is reading an expanded row —
+  // a re-render would collapse it (the auto-close bug). Skip this cycle;
+  // the next tick (or a collapse) will refresh.
   if (document.querySelector('tr.xpanel:not(.hidden)')) return;
   try{
     const res = await fetch('/data');
     if (res.status === 401) { location.href = '/login'; return; }
-    const data = await res.json();
-    // Re-check: user may have expanded a row while we were fetching.
-    if (document.querySelector('tr.xpanel:not(.hidden)')) return;
-    DATA = data;
+    DATA = await res.json();
     applyViewer();
     renderAll();
   }
@@ -1635,10 +1617,22 @@ document.getElementById('tabs').addEventListener('click', ev=>{
   showTab(t.dataset.tab);
 });
 document.getElementById('actFilters').addEventListener('click', ev=>{
-  const c = ev.target.closest('.segbtn'); if(!c) return;
+  const c = ev.target.closest('.chip'); if(!c) return;
   if (c.dataset.view !== undefined) { window.groupMode = (c.dataset.view === 'group'); renderActivity(); return; }
   if (c.dataset.src !== undefined) { srcFilter = c.dataset.src; renderActivity(); return; }
   if (c.dataset.f !== undefined) { actFilter = c.dataset.f; renderActivity(); }
+});
+// Grouped (div-card) view interactions.
+document.getElementById('actGrouped').addEventListener('click', ev=>{
+  const head = ev.target.closest('.ghead');
+  if (head) {
+    const card = head.closest('.gcard');
+    const kids = card.querySelector('.gkids');
+    if (kids){ const collapsed = kids.classList.toggle('collapsed'); const car = head.querySelector('.gcaret'); if(car) car.textContent = collapsed ? '▸' : '▾'; }
+    return;
+  }
+  const act = ev.target.closest('.gaction');
+  if (act){ const xi = act.getAttribute('data-i'); const p = document.querySelector('.gpanel[data-xi="'+xi+'"]'); if(p){ p.classList.toggle('hidden'); act.classList.toggle('open'); } }
 });
 document.getElementById('orgFilter').addEventListener('change', ev=>{
   orgFilter = ev.target.value; projFilter = "ALL"; renderAll();
@@ -1680,22 +1674,6 @@ document.getElementById('actProj').addEventListener('change', ev=>{
 });
 // Expand/collapse an event row to reveal its full detail panel.
 document.getElementById('actBody').addEventListener('click', ev=>{
-  // Turn header click → collapse/expand all rows belonging to that turn.
-  const turn = ev.target.closest('tr.turnrow');
-  if (turn) {
-    const gi = turn.getAttribute('data-turn');
-    const kids = document.querySelectorAll('tr.turn-'+gi);
-    let nowCollapsed = false;
-    kids.forEach(k=>{
-      // don't force-open expand panels that were closed; just hide/show the row
-      const willHide = !k.classList.contains('turn-collapsed');
-      k.classList.toggle('turn-collapsed', willHide);
-      nowCollapsed = willHide;
-    });
-    const car = turn.querySelector('.tcaret'); if (car) car.textContent = nowCollapsed ? '▸' : '▾';
-    return;
-  }
-  // Row click → expand/collapse that row's detail panel.
   const tr = ev.target.closest('tr.can-expand'); if(!tr) return;
   const i = tr.getAttribute('data-i');
   const panel = document.querySelector('tr.xpanel[data-xi="'+i+'"]');
@@ -1703,28 +1681,6 @@ document.getElementById('actBody').addEventListener('click', ev=>{
   const open = !panel.classList.contains('hidden');
   panel.classList.toggle('hidden', open);
   tr.classList.toggle('open', !open);
-});
-// Grouped (div-card) view interactions.
-document.getElementById('actGrouped').addEventListener('click', ev=>{
-  // Card header → collapse/expand the turn's action list.
-  const head = ev.target.closest('.ghead');
-  if (head) {
-    const card = head.closest('.gcard');
-    const gi = card.getAttribute('data-turn');
-    const kids = card.querySelector('.gkids[data-kids="'+gi+'"]');
-    if (kids) {
-      const collapsed = kids.classList.toggle('collapsed');
-      const car = head.querySelector('.gcaret'); if (car) car.textContent = collapsed ? '▸' : '▾';
-    }
-    return;
-  }
-  // Action line → expand/collapse its detail panel.
-  const act = ev.target.closest('.gaction');
-  if (act) {
-    const xi = act.getAttribute('data-i');
-    const panel = document.querySelector('.gpanel[data-xi="'+xi+'"]');
-    if (panel) { panel.classList.toggle('hidden'); act.classList.toggle('open'); }
-  }
 });
 // Back to the all-orgs overview.
 document.getElementById('fleetTitle').addEventListener('click', ev=>{
@@ -2112,7 +2068,7 @@ async function doReset(username){
   clearSelection(); loadProvisionUsers();
 }
 
-refresh(); /* auto-refresh temporarily disabled for debugging */
+refresh(); setInterval(refresh, 5000);
 </script>
 </body>
 </html>`;
@@ -2120,9 +2076,10 @@ refresh(); /* auto-refresh temporarily disabled for debugging */
 const LOGIN_PAGE = (err) => `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>GROW · Sign in</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
 <style>
   body{margin:0;height:100vh;display:grid;place-items:center;background:#070b07;
-    font-family:ui-monospace,'Courier New',monospace;color:#d6e8d6}
+    font-family:'JetBrains Mono',ui-monospace,monospace;color:#d6e8d6}
   .card{width:320px;background:#0d130d;border:1px solid #1e2a1e;border-radius:10px;padding:28px}
   .logo{width:34px;height:34px;border-radius:8px;background:#4ade80;color:#070b07;display:grid;
     place-items:center;font-weight:800;margin-bottom:16px}
@@ -2148,9 +2105,10 @@ const LOGIN_PAGE = (err) => `<!doctype html><html lang="en"><head>
 const CHANGE_PW_PAGE = (err, { forced = false } = {}) => `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>GROW · Set a new password</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
 <style>
   body{margin:0;height:100vh;display:grid;place-items:center;background:#070b07;
-    font-family:ui-monospace,'Courier New',monospace;color:#d6e8d6}
+    font-family:'JetBrains Mono',ui-monospace,monospace;color:#d6e8d6}
   .card{width:340px;background:#0d130d;border:1px solid #1e2a1e;border-radius:10px;padding:28px}
   .logo{width:34px;height:34px;border-radius:8px;background:#4ade80;color:#070b07;display:grid;
     place-items:center;font-weight:800;margin-bottom:16px}
