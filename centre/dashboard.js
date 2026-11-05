@@ -693,6 +693,21 @@ const PAGE = `<!doctype html>
   .actbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap}
   .filters{display:flex;gap:8px;flex-wrap:wrap}
   .projpick{font-size:12px;color:var(--dim);display:inline-flex;align-items:center}
+  /* Event-log header row: label on the left, a small Filters toggle on the
+     right. The whole filter chip panel is hidden by default so the log reads
+     clean; the toggle reveals it and shows a summary of any active filter. */
+  .acthead{display:flex;align-items:center;gap:14px}
+  .acthead .section-label{flex:1;margin:28px 0 13px}
+  .filtertoggle{display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
+    color:var(--dim);font-family:inherit;font-size:12px;font-weight:500;padding:6px 12px;
+    white-space:nowrap;transition:color .12s,border-color .12s,background .12s}
+  .filtertoggle:hover{color:var(--txt);border-color:rgba(74,222,128,.3)}
+  .filtertoggle[aria-expanded="true"]{color:var(--accent);border-color:rgba(74,222,128,.3);background:var(--accent-soft)}
+  .filtertoggle .ft-ico{font-size:12px;line-height:1}
+  .filtertoggle .ft-sum{color:var(--accent);font-size:11px}
+  .filtertoggle .ft-sum:not(:empty){margin-left:2px;padding-left:8px;border-left:1px solid var(--line)}
+  .actbar.hidden{display:none}
   .chip{padding:6px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer;
     border:1px solid var(--line);color:var(--dim);background:var(--surface);transition:.16s}
   .chip:hover{color:var(--txt);border-color:rgba(74,222,128,.3)}
@@ -924,8 +939,13 @@ const PAGE = `<!doctype html>
   </section>
 
   <section id="activity" class="hidden">
-    <div class="section-label" id="actLabel">Event log</div>
-    <div class="actbar">
+    <div class="acthead">
+      <div class="section-label" id="actLabel">Event log</div>
+      <button type="button" class="filtertoggle" id="actFilterToggle" aria-expanded="false">
+        <span class="ft-ico">☰</span><span>Filters</span><span class="ft-sum" id="actFilterSum"></span>
+      </button>
+    </div>
+    <div class="actbar hidden" id="actFilterPanel">
       <div class="filters" id="actFilters"></div>
       <label class="projpick mono">project&nbsp;
         <select id="actProj"><option value="ALL">All projects</option></select>
@@ -1294,6 +1314,23 @@ function renderActivity(){
     '<div class="chip '+(((window.groupMode?'group':'flat')===f)?'active':'')+'" data-view="'+f+'">'+l+'</div>').join('');
   document.getElementById('actFilters').innerHTML = srcHtml + '<span class="chipsep"></span>' + catHtml + '<span class="chipsep"></span>' + viewHtml;
 
+  // Keep the collapsible filter panel in sync with the remembered open state,
+  // and surface a short summary of any ACTIVE (non-default) filter on the
+  // toggle so it's visible even while collapsed.
+  (function(){
+    const panel = document.getElementById('actFilterPanel');
+    const btn = document.getElementById('actFilterToggle');
+    const sum = document.getElementById('actFilterSum');
+    if (!panel || !btn || !sum) return;
+    panel.classList.toggle('hidden', !window.filtersOpen);
+    btn.setAttribute('aria-expanded', window.filtersOpen ? 'true' : 'false');
+    const parts = [];
+    if (srcFilter !== 'ALL') parts.push(srcFilter === 'dev' ? 'Dev' : 'App');
+    if (actFilter !== 'ALL') parts.push(actFilter);
+    if (projFilter !== 'ALL') parts.push(projFilter);
+    sum.textContent = parts.join(' · ');
+  })();
+
   let rows = eventsForOrg();
 
   // Apply the source filter (app/dev/all) before anything else.
@@ -1618,6 +1655,17 @@ document.getElementById('actFilters').addEventListener('click', ev=>{
   if (c.dataset.view !== undefined) { window.groupMode = (c.dataset.view === 'group'); renderActivity(); return; }
   if (c.dataset.src !== undefined) { srcFilter = c.dataset.src; renderActivity(); return; }
   if (c.dataset.f !== undefined) { actFilter = c.dataset.f; renderActivity(); }
+});
+// Filters live in a panel that's collapsed by default so the event log reads
+// clean. The toggle shows/hides it; the panel's open state is remembered for
+// the session so re-renders don't slam it shut while someone's using it.
+window.filtersOpen = window.filtersOpen || false;
+document.getElementById('actFilterToggle').addEventListener('click', ()=>{
+  window.filtersOpen = !window.filtersOpen;
+  const panel = document.getElementById('actFilterPanel');
+  const btn = document.getElementById('actFilterToggle');
+  panel.classList.toggle('hidden', !window.filtersOpen);
+  btn.setAttribute('aria-expanded', window.filtersOpen ? 'true' : 'false');
 });
 // Grouped (div-card) view interactions.
 document.getElementById('actGrouped').addEventListener('click', ev=>{
