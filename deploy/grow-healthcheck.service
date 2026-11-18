@@ -1,0 +1,7 @@
+# GROW healthcheck — one-shot run, triggered by grow-healthcheck.timer.
+[Unit]
+Description=GROW healthcheck (restart hung dashboard/collector)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/grow-healthcheck.sh

@@ -1,0 +1,11 @@
+# Runs the GROW healthcheck every 30 seconds.
+[Unit]
+Description=GROW healthcheck timer
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=30
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target

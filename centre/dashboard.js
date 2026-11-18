@@ -148,6 +148,36 @@ function verifyCached(lines) {
   return { ok: true };
 }
 
+/*
+ * Warm the decrypt cache after startup WITHOUT blocking the event loop.
+ * RSA-unwrapping the AES key costs ~1.8ms/line (measured; AES-GCM itself is
+ * ~0.01ms), so a cold first /data after every restart/deploy blocked the whole
+ * server for seconds. Do it in small slices, yielding to the event loop between
+ * them so logins and page loads keep being served while the cache fills.
+ */
+function prewarmCache() {
+  const t0 = Date.now();
+  const work = [];
+  try {
+    for (const d of store.listDevices()) {
+      for (const l of store.readDeviceLines(d.org, d.user, d.device, d.project)) work.push(l);
+    }
+  } catch (err) {
+    console.log("prewarm: could not read store:", err.message);
+    return;
+  }
+  const SLICE = 20; // ~35ms of work per slice
+  let i = 0;
+  (function step() {
+    const end = Math.min(i + SLICE, work.length);
+    for (; i < end; i++) {
+      try { bodyOf(JSON.parse(work[i])); } catch { /* bad line: buildData reports it */ }
+    }
+    if (i < work.length) return setImmediate(step);
+    console.log(`prewarm: cached ${BODY_CACHE.size} decrypted line(s) in ${Date.now() - t0}ms`);
+  })();
+}
+
 function buildData(scope) {
   // SERVER-SIDE org scoping — the security backbone.
   //   scope.role === "admin"      → see every org
@@ -2437,6 +2467,7 @@ if (require.main === module) {
   const BIND_HOST = process.env.GROW_BIND_HOST || undefined;
   server.listen(PORT, BIND_HOST, () => {
     console.log(`GROW Ethics Centre dashboard → http://${BIND_HOST || "0.0.0.0"}:${PORT}  (reads + decrypts centre-data/)`);
+    prewarmCache();
   });
 } else {
   module.exports = { buildData, categoryOf, detailOf, livenessOf };
