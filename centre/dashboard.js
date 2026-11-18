@@ -105,6 +105,49 @@ function livenessOf(lastSeen) {
  * it end-to-end with the private key, bucket events by GROW category, and
  * compute liveness. Returns { devices, events, summary, generatedAt }.
  */
+/*
+ * Decrypt cache. Stored lines are immutable (append-only batch files), and RSA
+ * decrypt is expensive (~3ms/line). The page polls /data every 5s, and this is
+ * a single-threaded server, so re-decrypting the whole store on every request
+ * (twice: verify + display) blocked the event loop for seconds and made
+ * requests pile up until the dashboard hung. Decrypt each line ONCE and reuse.
+ * Key = line hash + GCM tag, so a line with different ciphertext never hits
+ * another line's cached body.
+ */
+const BODY_CACHE = new Map();
+function bodyOf(e) {
+  if (!e.enc) return e;
+  const key = (e.hash || "") + "|" + (e.enc.tag || "");
+  const hit = BODY_CACHE.get(key);
+  if (hit) return hit;
+  const body = chain.decryptBody(e.enc, PRIVATE_KEY);
+  BODY_CACHE.set(key, body);
+  return body;
+}
+
+// Same checks as chain.verifyChain (links + recomputed hash over decrypted
+// body), but uses the decrypt cache so a full-store verify is cheap after the
+// first pass. Returns { ok } or { ok:false, at, why }.
+function verifyCached(lines) {
+  let prev = null;
+  for (let i = 0; i < lines.length; i++) {
+    let e;
+    try { e = JSON.parse(lines[i]); } catch { return { ok: false, at: i, why: "unparseable line" }; }
+    if (e.prev_hash !== prev) return { ok: false, at: i, why: "prev_hash break (deleted/reordered)" };
+    if (e.enc) {
+      let body;
+      try { body = bodyOf(e); } catch { return { ok: false, at: i, why: "decryption failed (tampered/ wrong key)" }; }
+      const { hash, ...rest } = body;
+      if (chain.hashOf(rest, prev) !== e.hash) return { ok: false, at: i, why: "hash mismatch after decrypt (edited)" };
+    } else {
+      const { hash, ...body } = e;
+      if (chain.hashOf(body, prev) !== hash) return { ok: false, at: i, why: "hash mismatch (edited)" };
+    }
+    prev = e.hash;
+  }
+  return { ok: true };
+}
+
 function buildData(scope) {
   // SERVER-SIDE org scoping — the security backbone.
   //   scope.role === "admin"      → see every org
@@ -123,7 +166,7 @@ function buildData(scope) {
     const rawLines = store.readDeviceLines(d.org, d.user, d.device, d.project);
 
     // Verify the stored chain for this device (decrypt + recompute hashes).
-    const verify = chain.verifyChain(rawLines, { privateKeyPem: PRIVATE_KEY, startPrev: null });
+    const verify = verifyCached(rawLines);
 
     // Decrypt each line's body for display.
     let decrypted = [];
@@ -131,7 +174,7 @@ function buildData(scope) {
     for (let i = 0; i < rawLines.length; i++) {
       try {
         const e = JSON.parse(rawLines[i]);
-        const body = e.enc ? chain.decryptBody(e.enc, PRIVATE_KEY) : e;
+        const body = bodyOf(e);
         decrypted.push(body);
       } catch (err) {
         decryptError = err.message || "decrypt failed";
