@@ -130,10 +130,9 @@ switch (cmd) {
     if (!arg1) { console.error("usage: grow-admin.js reset-password <username>"); process.exit(1); }
     const crypto = require("crypto");
     const temp = crypto.randomBytes(9).toString("base64url");
-    const r = accounts.setPassword(arg1, temp, { clearMustChange: false });
+    // forceChange: the temp password only works to reach the change-password page.
+    const r = accounts.setPassword(arg1, temp, { forceChange: true });
     if (!r.ok) { console.error("reset failed: " + r.reason); process.exit(1); }
-    // force change on next login
-    accounts.setPassword(arg1, temp, { clearMustChange: false });
     console.log("\n  New temp password for " + arg1 + " (shown once):\n\n    " + temp + "\n");
     break;
   }

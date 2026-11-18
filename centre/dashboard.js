@@ -63,6 +63,90 @@ function verifySession(cookieVal) {
   if (!obj.exp || Date.now() > obj.exp) return null; // expired
   return obj; // { username, role, org, exp }
 }
+/*
+ * Client IP. The dashboard binds to localhost and is only reachable through
+ * nginx (which sets X-Real-IP) and, in front of that, Cloudflare (which sets
+ * CF-Connecting-IP). Use those only when the TCP peer is loopback, i.e. the
+ * header came from our own proxy. Used for rate limiting and the admin audit
+ * log — never for authorization.
+ */
+function clientIp(req) {
+  const peer = (req.socket && req.socket.remoteAddress) || "";
+  const fromProxy = peer === "127.0.0.1" || peer === "::1" || peer === "::ffff:127.0.0.1";
+  if (fromProxy) {
+    const h = req.headers["cf-connecting-ip"] || req.headers["x-real-ip"];
+    if (h) return String(h).split(",")[0].trim().slice(0, 64);
+  }
+  return peer;
+}
+
+/*
+ * Login rate limiting (in memory; resets on restart).
+ *   - per (username, ip): 5 failures in 10 min -> that pair is locked for 10 min
+ *   - per ip (any username): 40 failures in 10 min -> that ip is locked for 10 min
+ * Keyed on the pair, not on the username alone, so someone hammering "daniel"
+ * from elsewhere cannot lock the real daniel out. A success clears the pair.
+ */
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+const LOGIN_LOCK_MS = 10 * 60 * 1000;
+const LOGIN_PAIR_MAX = 5;
+const LOGIN_IP_MAX = 40;
+const _loginFails = new Map(); // key -> { n, first, lockedUntil }
+function _loginKeys(username, ip) { return ["p|" + username + "|" + ip, "i|" + ip]; }
+function loginBlockedSeconds(username, ip) {
+  const now = Date.now();
+  let wait = 0;
+  for (const k of _loginKeys(username, ip)) {
+    const e = _loginFails.get(k);
+    if (e && e.lockedUntil > now) wait = Math.max(wait, Math.ceil((e.lockedUntil - now) / 1000));
+  }
+  return wait;
+}
+function loginFailed(username, ip) {
+  const now = Date.now();
+  if (_loginFails.size > 5000) { // bound memory: drop expired entries
+    for (const [k, e] of _loginFails) if (now - e.first > LOGIN_WINDOW_MS && e.lockedUntil <= now) _loginFails.delete(k);
+  }
+  const [pairKey, ipKey] = _loginKeys(username, ip);
+  for (const [k, max] of [[pairKey, LOGIN_PAIR_MAX], [ipKey, LOGIN_IP_MAX]]) {
+    let e = _loginFails.get(k);
+    if (!e || now - e.first > LOGIN_WINDOW_MS) e = { n: 0, first: now, lockedUntil: 0 };
+    e.n++;
+    if (e.n >= max) e.lockedUntil = now + LOGIN_LOCK_MS;
+    _loginFails.set(k, e);
+  }
+}
+function loginSucceeded(username, ip) { _loginFails.delete(_loginKeys(username, ip)[0]); }
+
+/*
+ * Admin audit log: who did what, from where, and whether it worked. One JSON
+ * object per line in centre/admin-audit.jsonl (0600). Records logins, lockouts,
+ * password changes and every /admin/* action. NEVER records passwords or
+ * plaintext tokens — only identifiers. Best-effort: logging must never break a
+ * request. Rotates to .1 at 2 MB.
+ */
+const ADMIN_AUDIT_FILE = process.env.GROW_ADMIN_AUDIT_FILE || path.join(__dirname, "admin-audit.jsonl");
+function auditAdmin(actor, action, target, ok, req, detail) {
+  try {
+    try {
+      if (fs.statSync(ADMIN_AUDIT_FILE).size > 2 * 1024 * 1024) fs.renameSync(ADMIN_AUDIT_FILE, ADMIN_AUDIT_FILE + ".1");
+    } catch { /* no file yet */ }
+    const line = JSON.stringify({
+      ts: new Date().toISOString(), actor: actor || null, action, target: target || null,
+      ok: !!ok, ip: req ? clientIp(req) : null, detail: detail || null,
+    });
+    fs.appendFileSync(ADMIN_AUDIT_FILE, line + "\n", { mode: 0o600 });
+  } catch { /* best-effort */ }
+}
+function readAdminAudit(limit) {
+  try {
+    const lines = fs.readFileSync(ADMIN_AUDIT_FILE, "utf8").split("\n").filter((l) => l.trim());
+    return lines.slice(-limit).reverse().map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  } catch { return []; }
+}
+// Identifier for an audit line — never the secret itself.
+function auditTokenId(t) { return "token#" + crypto.createHash("sha256").update(String(t || "")).digest("hex").slice(0, 8); }
+
 function parseCookies(req) {
   const out = {};
   const h = req.headers.cookie || "";
@@ -105,6 +189,24 @@ function livenessOf(lastSeen) {
  * it end-to-end with the private key, bucket events by GROW category, and
  * compute liveness. Returns { devices, events, summary, generatedAt }.
  */
+// Push health for a stream (see store.readHealth / collector.noteAttempt):
+// are this device's pushes being rejected, why, and how many lines are stuck
+// on the device. `unpushed` is as of the last push attempt (the Centre only
+// hears from the device when it pushes). null = no attempt recorded yet.
+function healthOf(d) {
+  const h = store.readHealth(d.org, d.user, d.device, d.project);
+  if (!h) return null;
+  const stored = d.state.received || 0;
+  return {
+    lastAttemptAt: h.lastAttemptAt || null,
+    rejects: h.rejects || 0,
+    firstRejectAt: h.firstRejectAt || null,
+    lastReject: h.lastReject || null,
+    localLines: h.localLines != null ? h.localLines : null,
+    unpushed: h.localLines != null ? Math.max(0, h.localLines - stored) : null,
+  };
+}
+
 /*
  * Decrypt cache. Stored lines are immutable (append-only batch files), and RSA
  * decrypt is expensive (~3ms/line). The page polls /data every 5s, and this is
@@ -254,6 +356,7 @@ function buildData(scope) {
       storedVsVerified: { stored: d.state.received, verifiedLines: rawLines.length },
       decryptError,
       cat,
+      health: healthOf(d),
     });
   }
 
@@ -1116,6 +1219,14 @@ const PAGE = `<!doctype html>
       <th>Username</th><th>Role</th><th>Org</th><th>Status</th>
     </tr></thead><tbody id="pvUserTable"></tbody></table></div>
     <div class="pvout" id="pvResetOut" style="margin-top:4px"></div>
+
+    <div class="acthead" style="margin-top:28px">
+      <div class="section-label" style="margin:0">Admin activity</div>
+      <button type="button" class="filtertoggle" id="auditRefresh">Refresh</button>
+    </div>
+    <div class="panel" style="margin-top:10px"><table><thead><tr>
+      <th class="c-time">Time</th><th>Who</th><th>Action</th><th>Target</th><th>From</th><th>Result</th>
+    </tr></thead><tbody id="auditBody"></tbody></table></div>
   </section>
  </div>
 </main>
@@ -1239,6 +1350,10 @@ function aggDevices(devs){
     live: devs.filter(d=>d.liveness==="live").length,
     silent: devs.filter(d=>d.liveness==="silent").length,
     broken: devs.filter(d=>!d.chainOk).length,
+    // Pushes being rejected by the Centre (device can't deliver its logs).
+    failing: devs.filter(d=>d.health && d.health.rejects>0).length,
+    // Anything an operator should look at: broken chain, failing pushes, or gone silent.
+    attention: devs.filter(d=>!d.chainOk || (d.health && d.health.rejects>0) || d.liveness==="silent").length,
     events: devs.reduce((a,d)=>a+d.received,0),
     blocks: devs.reduce((a,d)=>a+d.cat.blocks,0),
   };
@@ -1255,7 +1370,7 @@ function renderOrgOverview(){
     'All organizations <span class="count">· '+orgs.length+' org'+(orgs.length===1?'':'s')+', '+all.devices+' device'+(all.devices===1?'':'s')+'</span>';
 
   document.getElementById('strip').innerHTML = [
-    ['Organizations', orgs.length, ''],
+    ['Needs attention', all.attention, all.attention>0?'warn':''],
     ['Devices', all.devices, ''],
     ['Live', all.live, 'good'],
     ['Silent', all.silent, all.silent>0?'warn':''],
@@ -1275,7 +1390,7 @@ function renderOrgOverview(){
       '<div class="val">'+a.devices+'</div>'+
       '<div class="val" style="color:var(--good)">'+a.live+'</div>'+
       '<div class="val" style="color:'+(a.silent>0?'var(--warn)':'var(--dim)')+'">'+a.silent+'</div>'+
-      '<div class="obadges"><span class="catpill O">'+a.events+' events</span>'+(a.blocks>0?'<span class="catpill W">'+a.blocks+' blocks</span>':'')+'</div>'+
+      '<div class="obadges"><span class="catpill O">'+a.events+' events</span>'+(a.blocks>0?'<span class="catpill W">'+a.blocks+' blocks</span>':'')+(a.failing>0?'<span class="catpill W" title="Devices whose pushes the Centre is rejecting">'+a.failing+' push failing</span>':'')+'</div>'+
     '</div>';
   }).join('');
 
@@ -1301,7 +1416,7 @@ function renderOrgFleet(org){
 
   document.getElementById('strip').innerHTML = [
     ['Devices', nDev, ''],
-    ['Projects', a.devices, ''],
+    ['Needs attention', a.attention, a.attention>0?'warn':''],
     ['Live', a.live, 'good'],
     ['Silent', a.silent, a.silent>0?'warn':''],
     ['Events', a.events, 'accent'],
@@ -1343,12 +1458,21 @@ function renderOrgFleet(org){
         ? '<span class="badge ok">chain ok</span>'
         : '<span class="badge bad" title="'+esc(d.chainWhy||'')+'">chain broken</span>';
       const proj = d.project && d.project !== "_" ? d.project : "(unknown project)";
+      // Push health: WHY a device went quiet (rejected pushes) and how many
+      // lines are stuck on it, instead of only a "silent" dot.
+      const hl = d.health;
+      const failBadge = (hl && hl.rejects>0)
+        ? ' <span class="badge bad" title="'+esc(((hl.lastReject && hl.lastReject.detail) || 'push rejected')+' \u00b7 '+hl.rejects+' rejected push(es) since '+when(hl.firstRejectAt))+'">push failing</span>'
+        : '';
+      const unpushedBadge = (hl && hl.unpushed>0)
+        ? ' <span class="badge idle" title="Lines on the device not yet stored at the Centre (as of its last push attempt)">'+hl.unpushed+' unpushed</span>'
+        : '';
       return '<div class="prow '+d.liveness+'" data-device="'+esc(d.device)+'" data-proj="'+esc(d.project||"_")+'" title="View this project\u2019s event log">'+
         '<div class="dcell"><span class="pdot '+d.liveness+'"></span><span class="pname" title="'+esc(proj)+'">'+esc(proj)+'</span><span class="viewlogs">view logs \u2192</span></div>'+
         '<div class="dcell val">'+d.received+'</div>'+
         '<div class="dcell val">'+ago(d.lastSeen)+'</div>'+
         '<div class="dcell val" title="'+when(d.firstSeen)+'">'+shortWhen(d.firstSeen)+'</div>'+
-        '<div class="dcell val">'+chain+(d.decryptError?' <span class="badge bad">decrypt err</span>':'')+'</div>'+
+        '<div class="dcell val">'+chain+failBadge+unpushedBadge+(d.decryptError?' <span class="badge bad">decrypt err</span>':'')+'</div>'+
         '<div class="catrow">'+cats+'</div>'+
       '</div>';
     }).join('');
@@ -1360,6 +1484,7 @@ function renderOrgFleet(org){
         '<span class="devname">'+esc(dev)+'</span>'+
         '<span class="badge '+dl+'">'+dl+'</span>'+
         (anyBroken?'<span class="badge bad">chain issue</span>':'')+
+        (projs.some(p=>p.health && p.health.rejects>0)?'<span class="badge bad">push failing</span>':'')+
         '<span class="devmeta">'+sourceLabel+' · '+projs.length+(isApp?(' app'+(projs.length===1?'':'s')):(' project'+(projs.length===1?'':'s')))+' · '+totEvents+' events</span>'+
       '</div>'+
       projHeader + projRows +
@@ -1707,7 +1832,7 @@ function showTab(tab){
   ['fleet','activity','alerts','admin'].forEach(id=>
     document.getElementById(id).classList.toggle('hidden', id!==tab));
   // Admin tab combines enrollment overview + provisioning. Load both.
-  if (tab === 'admin') { renderEnroll(); fillOrgDropdown(); loadProvisionTokens(); loadProvisionUsers(); }
+  if (tab === 'admin') { renderEnroll(); fillOrgDropdown(); loadProvisionTokens(); loadProvisionUsers(); loadAdminAudit(); }
   else if (typeof clearSelection === 'function') clearSelection();
 }
 document.getElementById('tabs').addEventListener('click', ev=>{
@@ -1997,6 +2122,26 @@ function groupHeader(label, count){
   return '<tr class="pvgrouphdr"><td></td><td colspan="4">'+esc(label)+
     ' <span style="color:var(--faint);font-weight:400">· '+count+(count===1?' account':' accounts')+'</span></td></tr>';
 }
+// Admin activity: recent logins, lockouts, password changes and admin actions.
+async function loadAdminAudit(){
+  const tb = document.getElementById('auditBody'); if(!tb) return;
+  let res;
+  try { res = await fetch('/admin/audit'); } catch(e){ return; }
+  if(res.status!==200){ tb.innerHTML='<tr><td colspan="6" style="color:var(--warn)">Could not load admin activity.</td></tr>'; return; }
+  const { entries } = await res.json();
+  if(!entries || !entries.length){ tb.innerHTML='<tr><td colspan="6" style="color:var(--dim)">No activity recorded yet.</td></tr>'; return; }
+  tb.innerHTML = entries.map(e=>
+    '<tr>'+
+      '<td class="c-time mono">'+esc(when(e.ts))+'</td>'+
+      '<td>'+esc(e.actor||'—')+'</td>'+
+      '<td class="mono">'+esc(e.action)+'</td>'+
+      '<td>'+esc(e.target||'')+'</td>'+
+      '<td class="mono">'+esc(e.ip||'')+'</td>'+
+      '<td style="color:'+(e.ok?'var(--good)':'var(--warn)')+'">'+(e.ok?'ok':'failed')+(e.detail?(' · '+esc(e.detail)):'')+'</td>'+
+    '</tr>').join('');
+}
+document.getElementById('auditRefresh').addEventListener('click', loadAdminAudit);
+
 async function loadProvisionUsers(){
   const tb = document.getElementById('pvUserTable'); if(!tb) return;
   const res = await fetch('/admin/users');
@@ -2246,8 +2391,14 @@ const CHANGE_PW_PAGE = (err, { forced = false } = {}) => `<!doctype html><html l
 </form></body></html>`;
 
 function readBody(req) {
+  // Cap the body (64 KB): every legitimate form/JSON post here is tiny, and an
+  // unauthenticated /login post must not be able to make us buffer megabytes.
+  const MAX = 64 * 1024;
   return new Promise((resolve) => {
-    let d = ""; req.on("data", (c) => (d += c)); req.on("end", () => resolve(d)); req.on("error", () => resolve(""));
+    let d = "", over = false;
+    req.on("data", (c) => { if (over) return; d += c; if (d.length > MAX) { over = true; d = ""; req.destroy(); resolve(""); } });
+    req.on("end", () => { if (!over) resolve(d); });
+    req.on("error", () => resolve(""));
   });
 }
 function sessionCookie(token) {
@@ -2273,11 +2424,23 @@ const server = http.createServer(async (req, res) => {
   if (url === "/login" && req.method === "POST") {
     const body = await readBody(req);
     const params = new URLSearchParams(body);
+    const ip = clientIp(req);
+    const uname = String(params.get("username") || "").trim().toLowerCase().slice(0, 64);
+    const wait = loginBlockedSeconds(uname, ip);
+    if (wait > 0) {
+      auditAdmin(uname, "login.blocked", null, false, req, "rate limited");
+      res.writeHead(429, { "Content-Type": "text/html; charset=utf-8", "Retry-After": String(wait) });
+      return res.end(LOGIN_PAGE("Too many failed attempts. Try again in " + Math.ceil(wait / 60) + " minute(s)."));
+    }
     const scope = accounts.verifyLogin(params.get("username"), params.get("password"));
     if (!scope) {
+      loginFailed(uname, ip);
+      auditAdmin(uname, "login.failure", null, false, req, null);
       res.writeHead(401, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(LOGIN_PAGE("Invalid username or password."));
     }
+    loginSucceeded(uname, ip);
+    auditAdmin(scope.username, "login.success", null, true, req, scope.role);
     const token = signSession({ username: scope.username, role: scope.role, org: scope.org, mustChange: !!scope.mustChange });
     // A must-change account lands on the forced password-change page, not the app.
     res.writeHead(302, { "Set-Cookie": sessionCookie(token), Location: scope.mustChange ? "/change-password" : "/" });
@@ -2289,7 +2452,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --- everything below REQUIRES a valid session ---
-  const session = verifySession(parseCookies(req).grow_session);
+  let session = verifySession(parseCookies(req).grow_session);
+  if (session) {
+    // The cookie is only proof the user logged in EARLIER. Re-check the account
+    // on every request so deleting/demoting it (or resetting its password)
+    // takes effect immediately instead of when the 8h cookie expires. Role,
+    // org and must-change come from the account record, not the cookie.
+    const acct = accounts.get(session.username);
+    if (!acct) session = null;
+    else { session.role = acct.role; session.org = acct.org; session.mustChange = acct.mustChange; }
+  }
   if (!session) {
     if (url === "/data") { res.writeHead(401, { "Content-Type": "application/json" }); return res.end(JSON.stringify({ error: "unauthorized" })); }
     res.writeHead(302, { Location: "/login" });
@@ -2313,6 +2485,7 @@ const server = http.createServer(async (req, res) => {
     const cur = accounts.verifyLogin(session.username, params.get("current") || "");
     const forcedOpts = { forced: !!session.mustChange };
     if (!cur) {
+      auditAdmin(session.username, "password.change", null, false, req, "wrong current password");
       res.writeHead(401, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(CHANGE_PW_PAGE("Current password is incorrect.", forcedOpts));
     }
@@ -2325,6 +2498,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(CHANGE_PW_PAGE("New passwords do not match.", forcedOpts));
     }
     const r = accounts.setPassword(session.username, next, { clearMustChange: true });
+    auditAdmin(session.username, "password.change", null, !!r.ok, req, r.ok ? null : r.reason);
     if (!r.ok) {
       res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(CHANGE_PW_PAGE("Could not set password: " + r.reason, forcedOpts));
@@ -2361,10 +2535,37 @@ const server = http.createServer(async (req, res) => {
   // elevate itself.
   if (url.startsWith("/admin/")) {
     if (session.role !== "admin") {
+      // A non-admin poking at admin routes is worth a line in the audit log.
+      auditAdmin(session.username, "admin.denied", url, false, req, "role " + session.role);
       res.writeHead(403, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ ok: false, error: "forbidden", detail: "admin only" }));
     }
-    const sendJson = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
+    // Every state-changing (POST) admin action is audited here, in ONE place, so
+    // a new route can't forget to log. `auditBody` is filled once the JSON body
+    // is parsed; targets are identifiers only (never passwords/plaintext tokens).
+    let auditBody = {};
+    const auditTarget = () => {
+      const b = auditBody || {};
+      switch (url) {
+        case "/admin/enroll": return String(b.org || "") + " / " + String(b.label || "");
+        case "/admin/revoke":
+        case "/admin/forget-token": return auditTokenId(b.tokenOrHash);
+        case "/admin/add-user": return String(b.username || "") + " (" + (b.role === "admin" ? "admin" : "org-viewer" + (b.org ? "/" + b.org : "")) + ")";
+        default: return String(b.username || "");
+      }
+    };
+    const sendJson = (code, obj) => {
+      if (req.method === "POST") {
+        auditAdmin(session.username, url.slice(1), auditTarget(), code < 400, req, code < 400 ? null : ((obj && (obj.error || obj.reason)) || null));
+      }
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(obj));
+    };
+
+    // Recent admin activity (newest first).
+    if (url === "/admin/audit" && req.method === "GET") {
+      return sendJson(200, { ok: true, entries: readAdminAudit(100) });
+    }
 
     // List viewer accounts (enrollment list already comes through /data).
     if (url === "/admin/users" && req.method === "GET") {
@@ -2388,6 +2589,7 @@ const server = http.createServer(async (req, res) => {
       let body;
       try { body = JSON.parse((await readBody(req)) || "{}"); }
       catch { return sendJson(400, { ok: false, error: "invalid JSON body" }); }
+      auditBody = body;
 
       // Issue a device/app credential for an org. Plaintext token shown ONCE.
       // Label is REQUIRED: one credential per device/app (IAM access-key model),
@@ -2436,7 +2638,8 @@ const server = http.createServer(async (req, res) => {
             return sendJson(400, { ok: false, error: "use 'Change my password' for your own account — reset would issue a temp password and risk locking you out" });
           }
           const temp = crypto.randomBytes(9).toString("base64url");
-          const r = accounts.setPassword(body.username, temp, { clearMustChange: false });
+          // forceChange: the temp password only gets them to the change-password page.
+          const r = accounts.setPassword(body.username, temp, { forceChange: true });
           if (!r.ok) return sendJson(400, r);
           return sendJson(200, { ok: true, username: body.username, tempPassword: temp });
         } catch (e) { return sendJson(400, { ok: false, error: e.message }); }

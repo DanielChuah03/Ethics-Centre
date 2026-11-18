@@ -33,8 +33,31 @@ function load() {
 }
 function save(db) {
   const tmp = STORE_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  // 0600: this file holds password hashes; only the service user should read it.
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, STORE_FILE);
+}
+
+/*
+ * Password policy — ONE place, enforced on every path that SETS a password
+ * (addUser with an explicit password, setPassword, the change-password page).
+ * It is never applied when VERIFYING a login, so existing accounts keep working
+ * whatever their current password is; the rule only bites when it is changed.
+ * Returns an error string, or null when the password is acceptable.
+ */
+const MIN_PASSWORD = 8;
+const MAX_PASSWORD = 256; // also caps scrypt input so a huge body can't burn CPU
+const COMMON_PASSWORDS = new Set([
+  "password", "password1", "12345678", "123456789", "1234567890",
+  "qwerty123", "qwertyui", "admin123", "admin1234", "letmein123",
+]);
+function passwordProblem(password, username) {
+  const p = String(password == null ? "" : password);
+  if (p.length < MIN_PASSWORD) return "password must be at least " + MIN_PASSWORD + " characters";
+  if (p.length > MAX_PASSWORD) return "password must be at most " + MAX_PASSWORD + " characters";
+  if (username && p.toLowerCase() === String(username).toLowerCase()) return "password must not be the same as the username";
+  if (COMMON_PASSWORDS.has(p.toLowerCase())) return "password is too common";
+  return null;
 }
 
 function hashPassword(password, salt) {
@@ -70,6 +93,10 @@ function addUser(usernameInput, { role = "org-viewer", org = null, password = nu
 
   const db = load();
   if (db.users[username]) throw new Error("user already exists: " + username);
+  if (password) {
+    const problem = passwordProblem(password, username);
+    if (problem) throw new Error(problem);
+  }
 
   const tempPassword = password || crypto.randomBytes(9).toString("base64url"); // ~12 chars
   const { salt, hash } = hashPassword(tempPassword);
@@ -92,6 +119,8 @@ function addUser(usernameInput, { role = "org-viewer", org = null, password = nu
  */
 function verifyLogin(usernameInput, password) {
   const username = sanitizeUser(usernameInput);
+  // Reject absurdly long input before hashing it (scrypt cost is per request).
+  if (String(password == null ? "" : password).length > MAX_PASSWORD) return null;
   const db = load();
   const u = db.users[username];
   if (!u) {
@@ -105,16 +134,29 @@ function verifyLogin(usernameInput, password) {
 }
 
 // Set/reset a password (operator reset, or user's own first-login change).
-function setPassword(usernameInput, newPassword, { clearMustChange = true } = {}) {
+// forceChange: the next login must pick a new password (used by admin reset,
+// where the admin knows the temp password).
+function setPassword(usernameInput, newPassword, { clearMustChange = true, forceChange = false } = {}) {
   const username = sanitizeUser(usernameInput);
   const db = load();
   const u = db.users[username];
   if (!u) return { ok: false, reason: "user not found" };
+  const problem = passwordProblem(newPassword, username);
+  if (problem) return { ok: false, reason: problem };
   const { salt, hash } = hashPassword(newPassword);
   u.salt = salt; u.hash = hash;
-  if (clearMustChange) u.mustChange = false;
+  if (forceChange) u.mustChange = true;
+  else if (clearMustChange) u.mustChange = false;
   save(db);
   return { ok: true, username };
+}
+
+// Current record for an account (no secrets), or null if it no longer exists.
+// Sessions are re-checked against this on every request, so deleting or
+// demoting an account takes effect immediately instead of when the cookie expires.
+function get(usernameInput) {
+  const u = load().users[sanitizeUser(usernameInput)];
+  return u ? { username: u.username, role: u.role, org: u.org, mustChange: !!u.mustChange } : null;
 }
 
 // List accounts (no secrets — never salt/hash).
@@ -137,4 +179,4 @@ function removeUser(usernameInput) {
   return { ok: true, username };
 }
 
-module.exports = { addUser, verifyLogin, setPassword, list, removeUser, STORE_FILE };
+module.exports = { addUser, verifyLogin, setPassword, get, list, removeUser, passwordProblem, STORE_FILE };

@@ -82,6 +82,29 @@ function storeBatch(org, user, device, project, lines, head) {
   return file;
 }
 
+/*
+ * Push-health record per stream: the outcome of the device's most recent push
+ * ATTEMPTS, kept separately from _state.json (which only describes what was
+ * durably stored). Lets the dashboard show WHY a device went quiet — e.g. its
+ * pushes are being rejected (chain anchor mismatch) — instead of that only
+ * appearing in the collector journal.
+ *   { lastAttemptAt, localLines, rejects, firstRejectAt, lastReject:{at,status,error,detail} }
+ */
+function healthPath(org, user, device, project) {
+  return path.join(partitionDir(org, user, device, project), "_health.json");
+}
+function readHealth(org, user, device, project) {
+  try { return JSON.parse(fs.readFileSync(healthPath(org, user, device, project), "utf8")); }
+  catch { return null; }
+}
+function writeHealth(org, user, device, project, h) {
+  const p = healthPath(org, user, device, project);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  const tmp = p + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(h, null, 2));
+  fs.renameSync(tmp, p);
+}
+
 // List all streams (org/user/device/project). Each is an independent chain.
 function listDevices() {
   const out = [];
@@ -144,4 +167,5 @@ function safeFiles(p) {
 
 module.exports = {
   ROOT, partitionDir, readDeviceState, storeBatch, listDevices, readDeviceLines,
+  readHealth, writeHealth,
 };

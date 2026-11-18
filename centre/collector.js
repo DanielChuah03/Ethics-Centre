@@ -76,6 +76,32 @@ function reply(res, code, obj) {
   res.end(body);
 }
 
+/*
+ * Record the outcome of a push ATTEMPT for this stream (success or rejection),
+ * so the dashboard can show a device whose pushes keep failing and why.
+ * Only called after the token is verified, so the identity is trustworthy.
+ * Best-effort: never lets a bookkeeping error change the response.
+ */
+function noteAttempt(org, user, device, project, result) {
+  try {
+    const prev = store.readHealth(org, user, device, project) || {};
+    const now = new Date().toISOString();
+    const h = {
+      lastAttemptAt: now,
+      // How many lines the device holds locally (self-reported); keep the last known.
+      localLines: Number.isInteger(result.localLines) && result.localLines >= 0 ? result.localLines : (prev.localLines != null ? prev.localLines : null),
+    };
+    if (result.ok) {
+      h.rejects = 0; h.firstRejectAt = null; h.lastReject = null;
+    } else {
+      h.rejects = (prev.rejects || 0) + 1;
+      h.firstRejectAt = prev.rejects ? prev.firstRejectAt : now;
+      h.lastReject = { at: now, status: result.status, error: result.error, detail: String(result.detail || "").slice(0, 200) };
+    }
+    store.writeHealth(org, user, device, project, h);
+  } catch { /* best-effort */ }
+}
+
 async function handleIngest(req, res) {
   // 1. token — require a non-empty bearer token.
   const auth = req.headers.authorization || "";
@@ -94,7 +120,7 @@ async function handleIngest(req, res) {
   } catch {
     return reply(res, 400, { ok: false, error: "bad json" });
   }
-  const { org, user, device, project, lines, head } = payload;
+  const { org, user, device, project, lines, head, localLines } = payload;
   if (!Array.isArray(lines) || lines.length === 0) {
     return reply(res, 400, { ok: false, error: "no lines" });
   }
@@ -109,6 +135,10 @@ async function handleIngest(req, res) {
   try { firstPrev = JSON.parse(lines[0]).prev_hash || null; } catch { firstPrev = undefined; }
   if (prior.received > 0 && firstPrev !== prior.head) {
     console.log(`ANCHOR FAIL device=${device} project=${effProject}: batch prev_hash=${firstPrev} != stored head=${prior.head}`);
+    noteAttempt(effOrg, user, device, effProject, {
+      ok: false, status: 409, error: "chain-anchor-mismatch", localLines,
+      detail: "batch does not continue from the Centre's stored head",
+    });
     return reply(res, 409, {
       ok: false,
       error: "chain-anchor-mismatch",
@@ -128,6 +158,10 @@ async function handleIngest(req, res) {
   const verify = chain.verifyChain(lines, { privateKeyPem: PRIVATE_KEY, startPrev: prior.head || null });
   if (!verify.ok) {
     console.log(`VERIFY FAIL device=${device}: ${verify.why} at line ${verify.at}`);
+    noteAttempt(effOrg, user, device, effProject, {
+      ok: false, status: 422, error: "chain-verify-failed", localLines,
+      detail: verify.why + " (batch line " + verify.at + ")",
+    });
     return reply(res, 422, {
       ok: false,
       error: "chain-verify-failed",
@@ -144,6 +178,7 @@ async function handleIngest(req, res) {
   // 5. store
   const newHead = (() => { try { return JSON.parse(lines[lines.length - 1]).hash || null; } catch { return head || null; } })();
   const file = store.storeBatch(effOrg, user, device, effProject, lines, newHead);
+  noteAttempt(effOrg, user, device, effProject, { ok: true, localLines });
   console.log(`OK org=${effOrg} user=${user} device=${device} project=${effProject}: stored ${lines.length} line(s)${ident.stub ? " [token:stub]" : ""} -> ${path.basename(file)}`);
   return reply(res, 200, { ok: true, stored: lines.length, head: newHead });
 }
